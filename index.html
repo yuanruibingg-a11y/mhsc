@@ -1190,7 +1190,14 @@
   // 初始化 Supabase
   function initSupabase() {
     if (window.supabase && !sbClient) {
-      sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      try {
+        sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('✅ Supabase 初始化成功');
+      } catch (e) {
+        console.error('❌ Supabase 初始化失败:', e);
+      }
+    } else if (!window.supabase) {
+      console.warn('⚠️ window.supabase 不存在，将使用本地存储模式');
     }
   }
 
@@ -1319,13 +1326,18 @@
     
     // 备份到 localStorage
     localStorage.setItem('my_collection_data', JSON.stringify(db));
+    console.log('💾 数据已保存到本地 localStorage');
     
     if (!sbClient) {
+      console.warn('⚠️ Supabase 未连接，数据仅保存到本地');
       return; // 离线模式，只保存到本地
     }
     
     try {
+      console.log('☁️ 正在保存到云端...');
+      
       // 保存用户
+      const userPromises = [];
       for (const username in db.users) {
         const user = db.users[username];
         const userData = {
@@ -1338,25 +1350,29 @@
           is_mock: user.isMock || false
         };
         
-        const { error } = await sbClient
-          .from('users')
-          .upsert(userData);
-        if (error) throw error;
+        userPromises.push(
+          sbClient.from('users').upsert(userData)
+        );
       }
       
       // 保存用户数据
+      const dataPromises = [];
       for (const username in db.userData) {
-        const { error } = await sbClient
-          .from('user_data')
-          .upsert({
+        dataPromises.push(
+          sbClient.from('user_data').upsert({
             username: username,
             data: db.userData[username],
             updated_at: new Date().toISOString()
-          });
-        if (error) throw error;
+          })
+        );
       }
+      
+      // 等待所有保存操作完成
+      await Promise.all([...userPromises, ...dataPromises]);
+      console.log('✅ 数据已保存到云端');
+      
     } catch (e) {
-      console.error('保存到 Supabase 失败:', e);
+      console.error('❌ 保存到 Supabase 失败:', e);
       // 数据已经备份到 localStorage，不影响使用
     }
   }
@@ -3150,20 +3166,40 @@
   document.getElementById('editToggleBtn').style.display = 'none';
   document.getElementById('loginSidebarBtn').style.display = '';
   
-  // 检查是否有保存的登录状态，有则自动登录
-  (async function tryAutoLogin() {
+  // 页面加载时初始化
+  (async function init() {
+    console.log('🚀 应用启动中...');
+    
+    // 立即初始化 Supabase
+    initSupabase();
+    
+    // 先从云端加载数据
+    try {
+      console.log('📥 从云端加载数据...');
+      await getDb();
+      console.log('✅ 数据加载完成');
+    } catch (e) {
+      console.error('❌ 数据加载失败:', e);
+    }
+    
+    // 检查是否有保存的登录状态，有则自动登录
     try {
       const savedUser = localStorage.getItem('currentUser');
-      const db = await getDb();
+      const db = getDbSync();
       if (savedUser && db.users[savedUser]) {
+        console.log('🔐 自动登录用户:', savedUser);
         state.currentUser = savedUser;
         loadUserData(savedUser);
         afterLogin();
         showToast('已自动登录');
         return;
       }
-    } catch {}
+    } catch (e) {
+      console.error('❌ 自动登录失败:', e);
+    }
+    
     // 如果没有保存的登录状态或自动登录失败，则显示登录弹窗
+    console.log('👋 显示登录弹窗');
     showPasswordModal();
   })();
 </script>
