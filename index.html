@@ -3283,10 +3283,17 @@
       const db = getDbSync();
       if (savedUser && db.users[savedUser]) {
         console.log('🔐 自动登录用户:', savedUser);
+        // 先加载用户数据
+        await loadUserData(savedUser);
         state.currentUser = savedUser;
-        loadUserData(savedUser);
+        // 然后执行登录后操作
         afterLogin();
+        // 最后确保渲染
+        renderCategories();
+        renderBookmarks();
+        updateMainTitle();
         showToast('已自动登录');
+        console.log('✅ 自动登录完成');
         return;
       }
     } catch (e) {
@@ -3295,6 +3302,7 @@
     
     // 如果没有保存的登录状态或自动登录失败，则显示登录弹窗
     console.log('👋 显示登录弹窗');
+    renderCategories(); // 先渲染空状态
     showPasswordModal();
   })();
 </script>
