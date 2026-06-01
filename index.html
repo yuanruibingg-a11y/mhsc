@@ -488,8 +488,9 @@
   .drag-handle:active { cursor: grabbing; }
 
   .bookmark-card .bm-icon {
-    width: 40px; height: 40px;
-    border-radius: var(--radius-sm);
+    width: 40px; 
+    height: 40px;
+    border-radius: 10px;
     background: var(--bg-surface);
     display: flex;
     align-items: center;
@@ -497,6 +498,8 @@
     font-size: 20px;
     flex-shrink: 0;
     border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
 
   .bookmark-card .bm-body { flex: 1; min-width: 0; }
@@ -1558,11 +1561,70 @@
     return state.bookmarks.filter(b => b.categoryId === catId).length;
   }
 
+  // 图标颜色配置
+  const iconColors = [
+    ['#FF6B6B', '#FF8E8E'],
+    ['#4ECDC4', '#7EDDD6'],
+    ['#45B7D1', '#73C6E0'],
+    ['#96CEB4', '#B8E0CB'],
+    ['#FFEAA7', '#FFF2C2'],
+    ['#DDA0DD', '#E8C0E8'],
+    ['#98D8C8', '#BCE8DE'],
+    ['#F7DC6F', '#F9E9A3'],
+    ['#BB8FCE', '#D0B0E0'],
+    ['#85C1E9', '#AED5F1']
+  ];
+
+  // 根据字符串生成颜色
+  function stringToColor(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return iconColors[Math.abs(hash) % iconColors.length];
+  }
+
+  // 生成 SVG 图标
+  function generateIconSVG(initial, colors) {
+    return `data:image/svg+xml,${encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+        <defs>
+          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:${colors[0]}"/>
+            <stop offset="100%" style="stop-color:${colors[1]}"/>
+          </linearGradient>
+        </defs>
+        <rect width="48" height="48" rx="12" fill="url(#g)"/>
+        <text x="24" y="31" font-size="22" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="600">${initial.toUpperCase()}</text>
+      </svg>
+    `)}`;
+  }
+
   function getFavicon(url) {
     try {
       const u = new URL(url);
-      return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64`;
-    } catch { return null; }
+      const hostname = u.hostname;
+      
+      // 优先使用 Google 的图标服务
+      return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+    } catch { 
+      return null; 
+    }
+  }
+
+  // 获取默认图标（彩色 SVG）
+  function getDefaultIcon(url, fallbackIcon) {
+    try {
+      const u = new URL(url);
+      const hostname = u.hostname;
+      const initial = hostname.replace('www.', '').charAt(0);
+      const colors = stringToColor(hostname);
+      return generateIconSVG(initial, colors);
+    } catch {
+      const initial = (fallbackIcon || '🔗').charAt(0);
+      const colors = stringToColor(initial);
+      return generateIconSVG(initial, colors);
+    }
   }
 
   function renderCategories() {
@@ -1882,8 +1944,20 @@
           <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}">
             ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
             <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
-            <div class="bm-icon">
-              ${favicon ? `<img src="${favicon}" alt="" style="width:24px;height:24px;border-radius:4px" onerror="this.parentNode.textContent='${cat ? cat.icon.slice(0,1) : '🔗'}'">` : (cat ? cat.icon.slice(0,1) : '🔗')}
+            <div class="bm-icon" id="bm-icon-${bm.id}">
+              <img src="${favicon}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover" 
+                   onerror="
+                     const container = this.parentNode;
+                     const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? cat.icon.slice(0,1) : '🔗'}');
+                     const img = document.createElement('img');
+                     img.src = defaultIcon;
+                     img.style.width = '100%';
+                     img.style.height = '100%';
+                     img.style.borderRadius = '8px';
+                     img.style.objectFit = 'cover';
+                     container.innerHTML = '';
+                     container.appendChild(img);
+                   ">
             </div>
             <div class="bm-body">
               <div class="bm-name">${escapeHtml(bm.name)}</div>
