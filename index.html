@@ -1279,13 +1279,14 @@
       // 整理数据格式
       const db = { users: {}, userData: {} };
       usersData.forEach(u => {
+        // 兼容各种可能的字段名
         db.users[u.username] = {
-          password: u.password_hash,
-          password_hash: u.password_hash,
-          password_salt: u.password_salt,
+          password: u.password || u.password_hash,
+          passwordHash: u.password_hash || u.password,
+          passwordSalt: u.password_salt,
           role: u.role,
           securityQ: u.security_question,
-          securityAHash: u.security_answer_hash,
+          securityAHash: u.security_answer_hash || u.security_answer,
           isMock: u.is_mock
         };
       });
@@ -1340,12 +1341,15 @@
       for (const username in db.users) {
         try {
           const user = db.users[username];
+          // 兼容旧表结构，保存到所有可能的字段
           const userData = {
             username: username,
-            password_hash: user.password_hash || user.password,
-            password_salt: user.password_salt || '',
+            password: user.passwordHash || user.password_hash || user.password,
+            password_hash: user.passwordHash || user.password_hash || user.password,
+            password_salt: user.passwordSalt || user.password_salt,
             role: user.role,
             security_question: user.securityQ,
+            security_answer: user.securityAHash,
             security_answer_hash: user.securityAHash,
             is_mock: user.isMock || false
           };
