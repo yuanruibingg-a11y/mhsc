@@ -1165,7 +1165,7 @@
   // Supabase 配置
   const SUPABASE_URL = 'https://rgzgbtmfouxxhclrtyxu.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_ygOzlcXJDNWu6p2tei27dw_3hXySaV1';
-  let supabase = null;
+  let sbClient = null;
   
   // 本地缓存
   let cachedDb = null;
@@ -1186,8 +1186,8 @@
 
   // 初始化 Supabase
   function initSupabase() {
-    if (window.supabase && !supabase) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (window.supabase && !sbClient) {
+      sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
   }
 
@@ -1231,7 +1231,7 @@
       return cachedDb;
     }
     
-    if (!supabase) {
+    if (!sbClient) {
       // 回退到 localStorage
       try {
         const raw = localStorage.getItem('my_collection_data');
@@ -1242,8 +1242,8 @@
     
     try {
       // 从 Supabase 读取
-      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
-      const { data: userDataList, error: dataError } = await supabase.from('user_data').select('*');
+      const { data: usersData, error: usersError } = await sbClient.from('users').select('*');
+      const { data: userDataList, error: dataError } = await sbClient.from('user_data').select('*');
       
       if (usersError || dataError) throw usersError || dataError;
       
@@ -1292,7 +1292,7 @@
     // 备份到 localStorage
     localStorage.setItem('my_collection_data', JSON.stringify(db));
     
-    if (!supabase) {
+    if (!sbClient) {
       return; // 离线模式，只保存到本地
     }
     
@@ -1310,7 +1310,7 @@
           is_mock: user.isMock || false
         };
         
-        const { error } = await supabase
+        const { error } = await sbClient
           .from('users')
           .upsert(userData);
         if (error) throw error;
@@ -1318,7 +1318,7 @@
       
       // 保存用户数据
       for (const username in db.userData) {
-        const { error } = await supabase
+        const { error } = await sbClient
           .from('user_data')
           .upsert({
             username: username,
