@@ -1173,6 +1173,36 @@
   };
   let confirmCallback = null;
 
+  // 安全加密函数（SHA-256 + Salt）
+  async function hashText(text) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  }
+
+  // 生成随机盐值
+  function generateSalt() {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // 密码哈希（带盐值）
+  async function hashPassword(password) {
+    const salt = generateSalt();
+    const hash = await hashText(password + salt);
+    return { salt, hash };
+  }
+
+  // 验证密码
+  async function verifyPassword(password, salt, hash) {
+    const computedHash = await hashText(password + salt);
+    return computedHash === hash;
+  }
+
   function getDb() {
     try {
       const raw = localStorage.getItem('my_collection_data');
@@ -2376,7 +2406,7 @@
     setTimeout(() => document.getElementById('changePwdOld').focus(), 100);
   }
 
-  function confirmChangePassword() {
+  async function confirmChangePassword() {
     const oldPwd = document.getElementById('changePwdOld').value;
     const newPwd = document.getElementById('changePwdNew').value;
     const confirmPwd = document.getElementById('changePwdConfirm').value;
@@ -2388,13 +2418,29 @@
     if (newPwd !== confirmPwd) { errorEl.textContent = '两次新密码不一致'; errorEl.style.display = ''; return; }
 
     const user = db.users[state.currentUser];
-    if (!user || user.password !== encodeStr(oldPwd)) {
+    let oldPwdValid = false;
+    if (user.passwordHash && user.passwordSalt) {
+      oldPwdValid = await verifyPassword(oldPwd, user.passwordSalt, user.passwordHash);
+    } else if (user.password) {
+      oldPwdValid = user.password === encodeStr(oldPwd);
+      if (oldPwdValid) {
+        const pwdHash = await hashPassword(oldPwd);
+        user.passwordHash = pwdHash.hash;
+        user.passwordSalt = pwdHash.salt;
+        delete user.password;
+      }
+    }
+
+    if (!user || !oldPwdValid) {
       errorEl.textContent = '当前密码错误';
       errorEl.style.display = '';
       return;
     }
 
-    user.password = encodeStr(newPwd);
+    const newPwdHash = await hashPassword(newPwd);
+    user.passwordHash = newPwdHash.hash;
+    user.passwordSalt = newPwdHash.salt;
+    if (user.password) delete user.password;
     saveDb(db);
     closeModal('changePwdModal');
     showToast('密码已修改');
@@ -2449,7 +2495,7 @@
     document.getElementById('passwordModal').classList.remove('show');
   }
 
-  function confirmPassword() {
+  async function confirmPassword() {
     const username = document.getElementById('usernameInput').value.trim();
     const password = document.getElementById('passwordInput').value;
     const errorEl = document.getElementById('passwordError');
@@ -2470,7 +2516,16 @@
         errorEl.style.display = '';
         return;
       }
-      db.users[username] = { password: encodeStr(password), role: 'admin', securityQ: question, securityA: answer };
+      // 创建管理员账号（密码和密保答案都加密）
+      const pwdHash = await hashPassword(password);
+      const answerHash = await hashText(answer);
+      db.users[username] = { 
+        passwordHash: pwdHash.hash, 
+        passwordSalt: pwdHash.salt, 
+        role: 'admin', 
+        securityQ: question, 
+        securityAHash: answerHash 
+      };
       db.userData[username] = { categories: [], bookmarks: [] };
       saveDb(db);
       state.currentUser = username;
@@ -2483,20 +2538,41 @@
 
     let passwordMatch = false;
     if (db.users[username]) {
-      const storedPwd = db.users[username].password;
-      // 先用新方式验证
-      if (storedPwd === encodeStr(password)) {
-        passwordMatch = true;
-      } else {
-        // 如果新方式不匹配，尝试用旧方式验证
-        try {
-          if (storedPwd === btoa(password)) {
-            passwordMatch = true;
-            // 验证成功后，自动升级为新的编码方式
-            db.users[username].password = encodeStr(password);
-            saveDb(db);
+      const userData = db.users[username];
+      if (userData.passwordHash && userData.passwordSalt) {
+        // 新格式验证
+        passwordMatch = await verifyPassword(password, userData.passwordSalt, userData.passwordHash);
+      } else if (userData.password) {
+        // 旧格式兼容
+        if (userData.password === encodeStr(password)) {
+          passwordMatch = true;
+          // 自动升级到新格式
+          const pwdHash = await hashPassword(password);
+          userData.passwordHash = pwdHash.hash;
+          userData.passwordSalt = pwdHash.salt;
+          // 加密密保答案（如果存在）
+          if (userData.securityA) {
+            userData.securityAHash = await hashText(userData.securityA);
+            delete userData.securityA;
           }
-        } catch {}
+          delete userData.password;
+          saveDb(db);
+        } else {
+          try {
+            if (userData.password === btoa(password)) {
+              passwordMatch = true;
+              const pwdHash = await hashPassword(password);
+              userData.passwordHash = pwdHash.hash;
+              userData.passwordSalt = pwdHash.salt;
+              if (userData.securityA) {
+                userData.securityAHash = await hashText(userData.securityA);
+                delete userData.securityA;
+              }
+              delete userData.password;
+              saveDb(db);
+            }
+          } catch {}
+        }
       }
     }
     
@@ -2612,7 +2688,7 @@
     setTimeout(() => document.getElementById('regUsernameInput').focus(), 100);
   }
 
-  function confirmRegister() {
+  async function confirmRegister() {
     const username = document.getElementById('regUsernameInput').value.trim();
     const password = document.getElementById('regPasswordInput').value;
     const passwordConfirm = document.getElementById('regPasswordConfirmInput').value;
@@ -2632,7 +2708,15 @@
       return;
     }
 
-    db.users[username] = { password: encodeStr(password), role: 'user', securityQ: question, securityA: answer };
+    const pwdHash = await hashPassword(password);
+    const answerHash = await hashText(answer);
+    db.users[username] = { 
+      passwordHash: pwdHash.hash, 
+      passwordSalt: pwdHash.salt, 
+      role: 'user', 
+      securityQ: question, 
+      securityAHash: answerHash 
+    };
     if (!db.userData) db.userData = {};
     saveDb(db);
 
@@ -2731,26 +2815,44 @@
     showToast(`已删除 ${username}`);
   }
 
-  function addMockAccount() {
+  async function addMockAccount() {
     const input = document.getElementById('mockUsernameInput');
     const username = input.value.trim();
     if (!username) { showToast('请输入账号名'); return; }
     const db = getDb();
     if (db.users[username]) { showToast('账号已存在'); return; }
-    db.users[username] = { password: encodeStr('123456'), role: 'user', securityQ: '你的出生地是哪里？', securityA: '测试', isMock: true };
+    const pwdHash = await hashPassword('123456');
+    const answerHash = await hashText('测试');
+    db.users[username] = { 
+      passwordHash: pwdHash.hash, 
+      passwordSalt: pwdHash.salt, 
+      role: 'user', 
+      securityQ: '你的出生地是哪里？', 
+      securityAHash: answerHash, 
+      isMock: true 
+    };
     saveDb(db);
     input.value = '';
     renderUserList();
     showToast(`已添加测试账号「${username}」(密码: 123456)`);
   }
 
-  function addBatchMockAccounts() {
+  async function addBatchMockAccounts() {
     const names = ['张三', '李四', '王五', '赵六', '测试员A', '测试员B'];
     const db = getDb();
     let added = 0;
+    const pwdHash = await hashPassword('123456');
+    const answerHash = await hashText('测试');
     names.forEach(name => {
       if (!db.users[name]) {
-        db.users[name] = { password: encodeStr('123456'), role: 'user', securityQ: '你的出生地是哪里？', securityA: '测试', isMock: true };
+        db.users[name] = { 
+          passwordHash: pwdHash.hash, 
+          passwordSalt: pwdHash.salt, 
+          role: 'user', 
+          securityQ: '你的出生地是哪里？', 
+          securityAHash: answerHash, 
+          isMock: true 
+        };
         added++;
       }
     });
@@ -2803,7 +2905,7 @@
     }
   }
 
-  function confirmResetPassword() {
+  async function confirmResetPassword() {
     const username = document.getElementById('resetUsernameInput').value.trim();
     const answer = document.getElementById('resetAnswerInput').value.trim().toLowerCase();
     const newPwd = document.getElementById('resetNewPwdInput').value;
@@ -2821,21 +2923,40 @@
       return;
     }
 
-    // 兼容旧数据（可能是编码的，也可能不是编码的）
-    const storedAnswer = db.users[username]?.securityA;
+    const userData = db.users[username];
+    if (!userData) {
+      resetError.textContent = '账号不存在';
+      resetError.style.display = '';
+      return;
+    }
+
     let answerMatch = false;
-    if (storedAnswer) {
-      answerMatch = (storedAnswer === answer);
+    if (userData.securityAHash) {
+      // 新格式验证
+      const answerHash = await hashText(answer);
+      answerMatch = answerHash === userData.securityAHash;
+    } else if (userData.securityA) {
+      // 旧格式兼容
+      const storedAnswer = userData.securityA;
+      answerMatch = storedAnswer === answer;
       if (!answerMatch) {
-        // 尝试解码后匹配
         try {
-          answerMatch = (decodeStr(storedAnswer) === answer);
+          answerMatch = decodeStr(storedAnswer) === answer;
         } catch {}
+      }
+      if (answerMatch) {
+        // 自动升级
+        const newAnswerHash = await hashText(answer);
+        userData.securityAHash = newAnswerHash;
+        delete userData.securityA;
       }
     }
 
-    if (db.users[username] && answerMatch) {
-      db.users[username].password = encodeStr(newPwd);
+    if (answerMatch) {
+      const pwdHash = await hashPassword(newPwd);
+      userData.passwordHash = pwdHash.hash;
+      userData.passwordSalt = pwdHash.salt;
+      if (userData.password) delete userData.password;
       saveDb(db);
       document.getElementById('resetPwdModal').classList.remove('show');
       showPasswordModal();
