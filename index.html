@@ -1,0 +1,2915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的收藏架</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #1a1816;
+    --bg-secondary: #24212e;
+    --bg-card: #2d2938;
+    --bg-card-hover: #353048;
+    --bg-surface: #2a2535;
+    --text-primary: #f0ebe3;
+    --text-secondary: #a89f94;
+    --text-muted: #736b7d;
+    --accent: #d4a853;
+    --accent-hover: #e4b85e;
+    --accent-glow: rgba(212, 168, 83, 0.15);
+    --accent-dim: rgba(212, 168, 83, 0.08);
+    --border: rgba(240, 235, 227, 0.06);
+    --border-light: rgba(240, 235, 227, 0.1);
+    --danger: #e06060;
+    --danger-hover: #f07070;
+    --radius: 12px;
+    --radius-lg: 20px;
+    --radius-sm: 8px;
+    --shadow: 0 2px 20px rgba(0,0,0,0.3);
+    --shadow-sm: 0 1px 8px rgba(0,0,0,0.2);
+    --font-serif: 'Noto Serif SC', serif;
+    --font-sans: 'Noto Sans SC', system-ui, sans-serif;
+    --sidebar-width: 240px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 0%, rgba(212,168,83,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(180,140,200,0.03) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(212,168,83,0.015) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: var(--sidebar-width);
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 10;
+    transition: transform 0.3s ease;
+    backdrop-filter: blur(12px);
+  }
+
+  .sidebar-header {
+    padding: 28px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-header h1 {
+    font-family: var(--font-serif);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sidebar-header h1 span { color: var(--accent); }
+  .sidebar-header .subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .sidebar-nav { flex: 1; overflow-y: auto; padding: 12px 10px; }
+
+  .sidebar-nav::-webkit-scrollbar { width: 4px; }
+  .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+
+  .nav-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    padding: 12px 12px 6px;
+    font-weight: 500;
+  }
+
+  .global-toggle {
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .global-toggle:hover {
+    background: var(--bg-card);
+    transform: scale(1.1);
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+    font-size: 14px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    position: relative;
+  }
+
+  .nav-item:hover { background: var(--accent-dim); color: var(--text-primary); }
+  .nav-item.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 6px; bottom: 6px;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  .nav-item .nav-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+  .nav-item .nav-count {
+    margin-left: auto;
+    font-size: 11px;
+    background: var(--bg-card);
+    padding: 1px 8px;
+    border-radius: 10px;
+    color: var(--text-muted);
+    min-width: 20px;
+    text-align: center;
+  }
+  .nav-item.active .nav-count { background: var(--accent); color: var(--bg-primary); }
+
+  .nav-item .nav-actions {
+    display: none;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .nav-item:hover .nav-actions { display: flex; }
+
+  .nav-btn {
+    width: 24px; height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+  .nav-btn.danger:hover { color: var(--danger); }
+
+  .category-item {
+    cursor: grab;
+  }
+  .category-item:active {
+    cursor: grabbing;
+  }
+  .category-item.dragging {
+    opacity: 0.5;
+  }
+  .category-item.drag-over {
+    border-top: 2px solid var(--accent);
+  }
+
+  .group-categories.drag-over {
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius-sm);
+  }
+
+  .drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 14px;
+    user-select: none;
+    margin-right: 2px;
+  }
+  .drag-handle:hover {
+    color: var(--text-secondary);
+  }
+
+  .group-item {
+    margin-bottom: 4px;
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+  }
+
+  .group-header:hover {
+    background: var(--bg-surface);
+  }
+
+  .group-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .group-categories {
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+  }
+
+  .group-categories.collapsed {
+    display: none;
+  }
+
+  .nav-item .nav-collapse {
+    width: 20px; height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .nav-item .nav-collapse:hover { color: var(--text-secondary); }
+  .nav-item .nav-collapse.collapsed { transform: rotate(-90deg); }
+  .category-items.collapsed { display: none; }
+
+  .star-btn {
+    width: 28px; height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .star-btn:hover { color: var(--accent); background: var(--accent-dim); }
+  .star-btn.starred { color: var(--accent); }
+  .bookmark-card.starred { border-color: rgba(212, 168, 83, 0.2); }
+
+  .sidebar-footer {
+    padding: 12px 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .footer-section {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font-sans);
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--text-muted); }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--bg-primary); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-icon {
+    width: 34px; height: 34px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .main {
+    flex: 1;
+    margin-left: var(--sidebar-width);
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  .main-header {
+    padding: 28px 36px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: rgba(26, 24, 22, 0.85);
+    backdrop-filter: blur(12px);
+    z-index: 5;
+  }
+
+  .main-header-left { display: flex; align-items: center; gap: 16px; }
+
+  .menu-toggle {
+    display: none;
+    width: 36px; height: 36px;
+    border: none;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 18px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .main-title {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .main-title .highlight { color: var(--accent); }
+
+  .main-actions { display: flex; align-items: center; gap: 10px; }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0 14px;
+    gap: 8px;
+    transition: all 0.2s;
+    width: 240px;
+  }
+  .search-box:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .search-box .search-icon { color: var(--text-muted); font-size: 14px; }
+  .search-box input {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    padding: 10px 0;
+    font-size: 14px;
+    font-family: var(--font-sans);
+    width: 100%;
+    outline: none;
+  }
+  .search-box input::placeholder { color: var(--text-muted); }
+
+  .content {
+    padding: 24px 36px 60px;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .empty-state .empty-icon { font-size: 56px; margin-bottom: 16px; opacity: 0.6; }
+  .empty-state h3 { font-family: var(--font-serif); font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; max-width: 300px; line-height: 1.6; }
+
+  .bookmarks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+
+  .bookmark-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px 18px 10px;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .bookmark-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+  .bookmark-card:active { transform: translateY(0); }
+  .bookmark-card.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  .bookmark-card.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow), var(--shadow);
+    transform: translateY(-2px);
+  }
+
+  .drag-handle {
+    width: 24px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 16px;
+    border-radius: 4px;
+    user-select: none;
+    transition: color 0.15s;
+    opacity: 0;
+    margin-top: 2px;
+  }
+  .bookmark-card:hover .drag-handle { opacity: 1; }
+  .drag-handle:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .drag-handle:active { cursor: grabbing; }
+
+  .bookmark-card .bm-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+
+  .bookmark-card .bm-body { flex: 1; min-width: 0; }
+  .bookmark-card .bm-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bookmark-card .bm-url {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 0.2s;
+  }
+  .bookmark-card:hover .bm-url { color: var(--accent); }
+
+  .bookmark-card .bm-card-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .bookmark-card:hover .bm-card-actions { opacity: 1; }
+
+  .bm-card-btn {
+    width: 28px; height: 28px;
+    border: none;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .bm-card-btn:hover { background: var(--bg-card); color: var(--text-primary); }
+  .bm-card-btn.danger:hover { color: var(--danger); background: rgba(224,96,96,0.1); }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    width: 90%;
+    max-width: 460px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: slideUp 0.25s ease;
+  }
+
+  .modal-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text-primary);
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: var(--font-sans);
+    transition: all 0.2s;
+    outline: none;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .form-group select { cursor: pointer; }
+  .form-group select option { background: var(--bg-secondary); color: var(--text-primary); }
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 28px;
+  }
+
+  .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .btn-cancel:hover { background: var(--bg-card); color: var(--text-primary); }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    padding: 12px 24px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow);
+    font-size: 14px;
+    z-index: 200;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 9;
+    }
+    .sidebar-overlay.show { display: block; }
+
+    .main { margin-left: 0; }
+    .menu-toggle { display: flex; }
+
+    .main-header {
+      padding: 16px 20px;
+      flex-wrap: wrap;
+    }
+    .main-title { font-size: 18px; }
+
+    .search-box { width: 100%; order: 3; }
+
+    .content { padding: 16px 16px 40px; }
+
+    .bookmarks-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .modal { padding: 24px; margin: 16px; }
+  }
+
+  .confirm-dialog .modal { max-width: 380px; }
+  .confirm-text { color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+  .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+  .views-section {
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .views-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .views-section-header label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+
+  .view-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+  }
+  .view-row:last-child { margin-bottom: 0; }
+  .view-fields { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .view-fields input {
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-sans);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .view-fields input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .view-remove-btn {
+    width: 28px; height: 56px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+    margin-top: 2px;
+  }
+  .view-remove-btn:hover { background: rgba(224,96,96,0.1); color: var(--danger); }
+
+  .view-add-btn {
+    padding: 4px 10px;
+    border: 1px dashed var(--border-light);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+    width: 100%;
+  }
+  .view-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .bm-views {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .bm-view-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .bm-view-tag:hover {
+    background: rgba(74, 222, 128, 0.1);
+    border-color: rgba(74, 222, 128, 0.3);
+    color: #4ade80;
+  }
+
+  .editing-only { display: none !important; }
+  body.editing .sidebar-footer.editing-only { display: flex !important; }
+  body.editing .btn-primary.editing-only { display: inline-flex !important; }
+  body.editing .btn-sm.editing-only { display: inline-flex !important; }
+
+  body:not(.editing) .nav-item .nav-actions { display: none !important; }
+  body:not(.editing) .nav-item:hover .nav-actions { display: none !important; }
+  body:not(.editing) .bookmark-card .bm-card-actions { display: none !important; }
+  body:not(.editing) .bookmark-card:hover .bm-card-actions { display: none !important; }
+  body:not(.editing) .drag-handle { display: none !important; }
+  body:not(.editing) .bookmark-card:hover .drag-handle { display: none !important; }
+  body:not(.editing) .view-add-btn { display: none !important; }
+  body:not(.editing) .view-remove-btn { display: none !important; }
+
+  .edit-toggle-btn {
+    width: 36px; height: 36px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .edit-toggle-btn:hover { border-color: var(--text-muted); color: var(--text-primary); }
+  body.editing .edit-toggle-btn {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h1>📚 <span>收藏架</span></h1>
+      <div class="subtitle" style="display:flex;align-items:center;justify-content:space-between">
+        <span>PERSONAL COLLECTION</span>
+        <span id="userIndicator" style="font-size:11px;color:var(--accent);display:none"></span>
+      </div>
+      <button id="loginSidebarBtn" onclick="showPasswordModal()" style="display:none;width:100%;margin-top:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);cursor:pointer;font-size:13px;font-family:var(--font-sans);transition:all 0.2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='';this.style.color=''">🔑 登录</button>
+    </div>
+    <nav class="sidebar-nav" id="categoryList"></nav>
+    <div id="sidebarLogoutRow" style="display:none;padding:10px 14px;border-top:1px solid var(--border)">
+      <button onclick="openChangePasswordModal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s;margin-bottom:8px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='';this.style.color=''">🔑 修改密码</button>
+      <button onclick="logout()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='';this.style.color=''">⇢ 退出登录</button>
+    </div>
+    <div class="sidebar-footer editing-only">
+      <div class="footer-section">
+        <button class="btn btn-sm" onclick="openCategoryModal()" style="flex:1">+ 新建分类</button>
+        <button class="btn btn-sm" onclick="openGroupModal()" style="flex:1">📁 新建分组</button>
+        <button class="btn btn-sm btn-icon" id="userMgrBtn" onclick="openUserManager()" title="用户管理" style="display:none">👥</button>
+      </div>
+      <div class="footer-section">
+        <button class="btn btn-sm btn-icon" onclick="downloadImportTemplate()" title="下载导入模板">📄</button>
+        <button class="btn btn-sm btn-icon" onclick="document.getElementById('importFile').click()" title="导入JSON数据">⬆</button>
+        <button class="btn btn-sm btn-icon" onclick="document.getElementById('importCsvFile').click()" title="导入CSV表格">📊</button>
+        <button class="btn btn-sm btn-icon" onclick="document.getElementById('importHtmlFile').click()" title="导入Chrome/Firefox书签HTML">🌐</button>
+        <button class="btn btn-sm btn-icon" onclick="exportData()" title="导出数据">⬇</button>
+      </div>
+      <div class="footer-section">
+        <button class="btn btn-sm" onclick="logout()" title="切换账号" style="color:var(--danger);width:100%">⇄ 切换账号</button>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      <input type="file" id="importHtmlFile" accept=".html,.htm" style="display:none" onchange="importBookmarksHtml(event)">
+      <input type="file" id="importCsvFile" accept=".csv" style="display:none" onchange="importBookmarksCsv(event)">
+    </div>
+    <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="exportAllData()" style="flex:1;font-size:11px;padding:4px">💾 导出全部</button>
+      <button class="btn btn-sm" onclick="document.getElementById('globalImportFile').click()" style="flex:1;font-size:11px;padding:4px">📂 导入全部</button>
+      <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px;margin-top:4px">⌨ 快捷键</button>
+    </div>
+    <input type="file" id="globalImportFile" accept=".json" style="display:none" onchange="importAllData(event)">
+  </aside>
+
+  <main class="main">
+    <header class="main-header">
+      <div class="main-header-left">
+        <button class="menu-toggle" id="menuToggle">☰</button>
+        <h2 class="main-title" id="mainTitle"><span class="highlight">全部</span>收藏</h2>
+      </div>
+      <div class="main-actions">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="搜索收藏..." oninput="renderBookmarks()">
+        </div>
+        <button class="btn btn-primary editing-only" onclick="openBookmarkModal()">+ 添加</button>
+        <button class="edit-toggle-btn" id="editToggleBtn" onclick="toggleEditMode()" title="编辑模式">✎</button>
+      </div>
+    </header>
+    <div class="content" id="contentArea"></div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="bookmarkModal">
+  <div class="modal">
+    <div class="modal-title" id="bookmarkModalTitle">添加收藏</div>
+    <input type="hidden" id="editBookmarkId">
+    <div class="form-group">
+      <label>名称</label>
+      <input type="text" id="bookmarkName" placeholder="例如：GitHub" maxlength="50">
+    </div>
+    <div class="form-group">
+      <label>链接地址</label>
+      <input type="url" id="bookmarkUrl" placeholder="例如：https://github.com">
+    </div>
+    <div class="views-section">
+      <div class="views-section-header">
+        <label>视图页面</label>
+      </div>
+      <div id="viewsContainer"></div>
+      <button class="view-add-btn" onclick="addViewRow()">+ 添加视图</button>
+    </div>
+    <div class="form-group">
+      <label>分类</label>
+      <select id="bookmarkCategory"></select>
+    </div>
+    <div class="views-section" id="bookmarkVisibilitySection" style="display:none">
+      <div class="views-section-header">
+        <label>可见范围（不勾选则全部可见）</label>
+      </div>
+      <div id="bookmarkVisibilityContainer" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-cancel" onclick="closeModal('bookmarkModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveBookmark()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="categoryModal">
+  <div class="modal">
+    <div class="modal-title" id="categoryModalTitle">新建分类</div>
+    <input type="hidden" id="editCategoryId">
+    <div class="form-group">
+      <label>分类名称</label>
+      <input type="text" id="categoryName" placeholder="例如：常用网站" maxlength="20">
+    </div>
+    <div class="form-group">
+      <label>图标（Emoji）</label>
+      <input type="text" id="categoryIcon" placeholder="例如：🌐" maxlength="2" value="📁">
+    </div>
+    <div class="views-section" id="catVisibilitySection" style="display:none">
+      <div class="views-section-header">
+        <label>可见范围（不勾选则全部可见）</label>
+      </div>
+      <div id="catVisibilityContainer" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-cancel" onclick="closeModal('categoryModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveCategory()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="groupModal">
+  <div class="modal">
+    <div class="modal-title" id="groupModalTitle">新建分组</div>
+    <input type="hidden" id="editGroupId">
+    <input type="hidden" id="newCategoryGroupId">
+    <div class="form-group">
+      <label>分组名称</label>
+      <input type="text" id="groupName" placeholder="例如：工作" maxlength="20">
+    </div>
+    <div class="form-group">
+      <label>图标（Emoji）</label>
+      <input type="text" id="groupIcon" placeholder="例如：💼" maxlength="2" value="📁">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-cancel" onclick="closeModal('groupModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveGroup()">保存</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay confirm-dialog" id="confirmModal">
+  <div class="modal">
+    <div class="modal-title" id="confirmTitle">确认删除</div>
+    <div class="confirm-text" id="confirmText">确定要删除此项吗？</div>
+    <div class="confirm-actions">
+      <button class="btn btn-cancel" onclick="closeModal('confirmModal')">取消</button>
+      <button class="btn btn-primary" id="confirmBtn" style="background:var(--danger);border-color:var(--danger);" onclick="confirmAction()">删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay confirm-dialog" id="passwordModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title" id="passwordModalTitle">验证身份</div>
+
+    <div id="passwordSetupNotice" style="display:none">
+      <div class="confirm-text">首次使用，请设置管理员账号。</div>
+      <div class="form-group" style="margin:12px 0 10px">
+        <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密保问题（用于找回密码）</label>
+        <select id="securityQuestionSelect" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:var(--font-sans);outline:none;cursor:pointer;box-sizing:border-box;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+          <option value="你的出生地是哪里？">你的出生地是哪里？</option>
+          <option value="你的小学名称是什么？">你的小学名称是什么？</option>
+          <option value="你最喜欢的颜色是什么？">你最喜欢的颜色是什么？</option>
+          <option value="你的宠物名字是什么？">你的宠物名字是什么？</option>
+          <option value="你最想去的地方是哪里？">你最想去的地方是哪里？</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密保答案</label>
+        <input type="text" id="securityAnswerInput" placeholder="请设置密保答案" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+      </div>
+    </div>
+
+    <div id="passwordNormalNotice">
+      <div class="confirm-text">请输入账号和密码以进入。</div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">账号</label>
+      <input type="text" id="usernameInput" placeholder="请输入账号" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:4px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密码</label>
+      <input type="password" id="passwordInput" placeholder="请输入密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmPassword()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div id="passwordError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none">账号或密码错误，请重试</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+      <a href="#" style="color:var(--text-muted);font-size:12px;text-decoration:none" onclick="event.preventDefault();showRegisterModal()">注册账号</a>
+      <a href="#" id="forgotPwdLink" style="color:var(--text-muted);font-size:12px;text-decoration:none" onclick="event.preventDefault();showResetPasswordModal()">忘记密码？</a>
+    </div>
+    <div class="confirm-actions" style="margin-top:12px">
+      <button class="btn btn-cancel" onclick="closePasswordModal()">取消</button>
+      <button class="btn btn-primary" onclick="confirmPassword()" id="passwordConfirmBtn">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay confirm-dialog" id="changePwdModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">修改密码</div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">当前密码</label>
+      <input type="password" id="changePwdOld" placeholder="输入当前密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">新密码</label>
+      <input type="password" id="changePwdNew" placeholder="输入新密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:4px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">确认新密码</label>
+      <input type="password" id="changePwdConfirm" placeholder="再次输入新密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmChangePassword()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div id="changePwdError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+    <div class="confirm-actions" style="margin-top:16px">
+      <button class="btn btn-cancel" onclick="closeModal('changePwdModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmChangePassword()">修改</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay confirm-dialog" id="resetPwdModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">重置密码</div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">账号</label>
+      <input type="text" id="resetUsernameInput" placeholder="请输入你的账号" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div id="resetQuestionArea" style="display:none">
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;padding:8px 12px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border)">
+        <span style="color:var(--text-muted)">密保问题：</span><span id="resetQuestionText"></span>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密保答案</label>
+        <input type="text" id="resetAnswerInput" placeholder="请输入密保答案" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+      </div>
+      <div class="form-group" style="margin-bottom:4px">
+        <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">新密码</label>
+        <input type="password" id="resetNewPwdInput" placeholder="请输入新密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmResetPassword()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+      </div>
+    </div>
+    <div id="resetError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+    <div class="confirm-actions" style="margin-top:16px">
+      <button class="btn btn-cancel" onclick="closeModal('resetPwdModal')">取消</button>
+      <button class="btn btn-primary" id="resetPwdConfirmBtn" onclick="showResetQuestion()">下一步</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay confirm-dialog" id="registerModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">注册账号</div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">账号</label>
+      <input type="text" id="regUsernameInput" placeholder="请输入账号" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密码</label>
+      <input type="password" id="regPasswordInput" placeholder="请输入密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密码确认</label>
+      <input type="password" id="regPasswordConfirmInput" placeholder="再次输入密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密保问题（用于找回密码）</label>
+      <select id="regQuestionSelect" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:var(--font-sans);outline:none;cursor:pointer;box-sizing:border-box;transition:border-color 0.2s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+        <option value="你的出生地是哪里？">你的出生地是哪里？</option>
+        <option value="你的小学名称是什么？">你的小学名称是什么？</option>
+        <option value="你最喜欢的颜色是什么？">你最喜欢的颜色是什么？</option>
+        <option value="你的宠物名字是什么？">你的宠物名字是什么？</option>
+        <option value="你最想去的地方是哪里？">你最想去的地方是哪里？</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:4px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密保答案</label>
+      <input type="text" id="regAnswerInput" placeholder="请设置密保答案" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;transition:border-color 0.2s;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmRegister()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div id="registerError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+    <div class="confirm-actions" style="margin-top:16px">
+      <button class="btn btn-cancel" onclick="closeModal('registerModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmRegister()">注册</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="userMgrModal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">用户管理</div>
+    <div id="userListArea" style="margin-bottom:16px;max-height:300px;overflow-y:auto"></div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">添加模拟测试账号</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="mockUsernameInput" placeholder="账号" style="flex:1;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:var(--font-sans);outline:none" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+        <button class="btn btn-primary btn-sm" onclick="addMockAccount()">添加</button>
+        <button class="btn btn-sm" onclick="addBatchMockAccounts()" title="批量添加测试账号">批量</button>
+      </div>
+    </div>
+    <div class="form-actions" style="justify-content:space-between">
+      <button class="btn btn-sm" onclick="openChangePasswordModal()">🔑 修改密码</button>
+      <button class="btn btn-cancel" onclick="closeModal('userMgrModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="shortcutsModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">⌨ 键盘快捷键</div>
+    <div style="padding:8px 0">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="color:var(--text-secondary)">打开登录/验证窗口</span>
+        <span style="font-family:monospace;background:var(--bg-surface);padding:2px 8px;border-radius:4px;border:1px solid var(--border);font-size:12px">E</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="color:var(--text-secondary)">关闭当前弹窗</span>
+        <span style="font-family:monospace;background:var(--bg-surface);padding:2px 8px;border-radius:4px;border:1px solid var(--border);font-size:12px">Esc</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="color:var(--text-secondary)">搜索收藏（聚焦搜索框）</span>
+        <span style="font-family:monospace;background:var(--bg-surface);padding:2px 8px;border-radius:4px;border:1px solid var(--border);font-size:12px">Ctrl+F</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px">
+        <span style="color:var(--text-secondary)">打开快捷键面板</span>
+        <span style="font-family:monospace;background:var(--bg-surface);padding:2px 8px;border-radius:4px;border:1px solid var(--border);font-size:12px">?</span>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="closeModal('shortcutsModal')">知道了</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let state = {
+    groups: [],
+    categories: [],
+    bookmarks: [],
+    activeCategoryId: null,
+    currentUser: null,
+    collapsedCats: [],
+    collapsedGroups: [],
+    starred: []
+  };
+  let confirmCallback = null;
+
+  function getDb() {
+    try {
+      const raw = localStorage.getItem('my_collection_data');
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (!data.users || !data.userData) {
+          const oldCats = data.categories || [];
+          const oldBms = data.bookmarks || [];
+          return {
+            users: {},
+            userData: {}
+          };
+        }
+        return data;
+      }
+      return { users: {}, userData: {} };
+    } catch { return { users: {}, userData: {} }; }
+  }
+
+  function saveDb(db) {
+    localStorage.setItem('my_collection_data', JSON.stringify(db));
+  }
+  
+  // 导出数据
+  function exportAllData() {
+    const db = getDb();
+    const dataStr = JSON.stringify(db, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `收藏架数据_${new Date().toLocaleDateString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('数据已导出！');
+  }
+  
+  // 导入数据
+  function importAllData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.users && data.userData) {
+          if (confirm('确定要导入数据吗？这会覆盖当前数据！')) {
+            saveDb(data);
+            // 重新加载
+            state.currentUser = null;
+            state.groups = [];
+            state.categories = [];
+            state.bookmarks = [];
+            document.getElementById('userIndicator').style.display = 'none';
+            document.getElementById('loginSidebarBtn').style.display = '';
+            document.getElementById('sidebarLogoutRow').style.display = 'none';
+            showPasswordModal();
+            showToast('数据已导入！请重新登录');
+          }
+        } else {
+          showToast('数据格式不正确！');
+        }
+      } catch {
+        showToast('文件解析失败！');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function loadUserData(username) {
+    const db = getDb();
+    const user = db.users[username];
+    if (!user) return;
+    state.currentUser = username;
+
+    if (user.role === 'admin') {
+      const data = db.userData[username] || { groups: [], categories: [], bookmarks: [] };
+      state.groups = data.groups || [];
+      state.categories = data.categories || [];
+      state.bookmarks = data.bookmarks || [];
+    } else {
+      const allUsers = Object.keys(db.users);
+      const adminUser = allUsers.find(u => db.users[u].role === 'admin') || username;
+      const adminData = db.userData[adminUser] || { groups: [], categories: [], bookmarks: [] };
+      const allGroups = adminData.groups || [];
+      const allCats = adminData.categories || [];
+      const allBms = adminData.bookmarks || [];
+      state.groups = allGroups;
+      state.categories = allCats.filter(c => isVisibleToUser(c, username));
+      state.bookmarks = allBms.filter(b => isVisibleToUser(b, username));
+    }
+    state.bookmarks.forEach((bm, i) => migrateBookmark(bm, i));
+
+    // 迁移旧数据：没有分组的分类放到默认分组
+    if (state.categories.length > 0 && state.groups.length === 0) {
+      const defaultGroup = { id: genId(), name: '默认分组', icon: '📁', sortOrder: 0 };
+      state.groups = [defaultGroup];
+      state.categories.forEach((cat, idx) => {
+        if (!cat.groupId) {
+          cat.groupId = defaultGroup.id;
+          cat.sortOrder = idx;
+        }
+      });
+      saveUserData();
+    }
+
+    try {
+      const meta = JSON.parse(localStorage.getItem('collapsed_cats_' + username) || '[]');
+      state.collapsedCats = meta;
+    } catch { state.collapsedCats = []; }
+    try {
+      const collapsedGroups = JSON.parse(localStorage.getItem('collapsed_groups_' + username) || '[]');
+      state.collapsedGroups = collapsedGroups;
+    } catch { state.collapsedGroups = []; }
+    try {
+      const s = JSON.parse(localStorage.getItem('starred_' + username) || '[]');
+      state.starred = s;
+    } catch { state.starred = []; }
+
+    if (user.role === 'admin' && state.categories.length === 0) {
+      const defaultGroup = { id: genId(), name: '默认分组', icon: '📁', sortOrder: 0 };
+      state.groups = [defaultGroup];
+      state.categories = [
+        { id: genId(), name: '常用网站', icon: '🌐', groupId: defaultGroup.id, sortOrder: 0 },
+        { id: genId(), name: '表格地址', icon: '📊', groupId: defaultGroup.id, sortOrder: 1 },
+        { id: genId(), name: '开发工具', icon: '🛠', groupId: defaultGroup.id, sortOrder: 2 },
+        { id: genId(), name: '学习资源', icon: '📖', groupId: defaultGroup.id, sortOrder: 3 }
+      ];
+      saveUserData();
+    }
+  }
+
+  function isVisibleToUser(item, username) {
+    if (!item.visibleTo || item.visibleTo.length === 0) return true;
+    return item.visibleTo.includes(username);
+  }
+
+  function getUserList() {
+    const db = getDb();
+    return Object.entries(db.users).map(([u, info]) => ({
+      username: u,
+      role: info.role,
+      hasSecurity: !!info.securityA,
+      isMock: !!info.isMock
+    }));
+  }
+
+  function saveUserData() {
+    const db = getDb();
+    if (state.currentUser) {
+      const user = db.users[state.currentUser];
+      if (user && user.role === 'admin') {
+        db.userData[state.currentUser] = {
+          groups: state.groups,
+          categories: state.categories,
+          bookmarks: state.bookmarks
+        };
+        saveDb(db);
+      }
+    }
+  }
+
+  function isAdmin() {
+    const db = getDb();
+    return state.currentUser && db.users[state.currentUser] && db.users[state.currentUser].role === 'admin';
+  }
+
+  function migrateBookmark(bm, index) {
+    if (bm.viewUrl && !bm.views) {
+      bm.views = [{ id: genId(), name: '视图', url: bm.viewUrl }];
+    }
+    if (!bm.views) bm.views = [];
+    if (bm.sortOrder === undefined) bm.sortOrder = index;
+  }
+
+  function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  function getCategoryCount(catId) {
+    return state.bookmarks.filter(b => b.categoryId === catId).length;
+  }
+
+  function getFavicon(url) {
+    try {
+      const u = new URL(url);
+      return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64`;
+    } catch { return null; }
+  }
+
+  function renderCategories() {
+    const list = document.getElementById('categoryList');
+    const allCount = state.bookmarks.length;
+    const starredCount = state.starred.length;
+    const isEditing = document.body.classList.contains('editing');
+    
+    // 确保分组和分类有 sortOrder
+    state.groups.forEach((g, idx) => { if (g.sortOrder === undefined) g.sortOrder = idx; });
+    state.groups.sort((a, b) => a.sortOrder - b.sortOrder);
+    state.categories.forEach((c, idx) => { if (c.sortOrder === undefined) c.sortOrder = idx; });
+    
+    list.innerHTML = `
+      <div class="nav-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+        分类
+        ${isEditing ? `<span class="global-toggle" onclick="openGroupModal()" title="新建分组">➕</span>` : ''}
+      </div>
+      <button class="nav-item ${!state.activeCategoryId ? 'active' : ''}" onclick="selectCategory(null)">
+        <span class="nav-icon">📋</span>
+        全部收藏
+        <span class="nav-count">${allCount}</span>
+      </button>
+      ${starredCount > 0 ? `<button class="nav-item ${state.activeCategoryId === '__starred__' ? 'active' : ''}" onclick="selectCategory('__starred__')">
+        <span class="nav-icon">⭐</span>
+        星标收藏
+        <span class="nav-count">${starredCount}</span>
+      </button>` : ''}
+      <div id="groups-container">
+        ${state.groups.map(group => {
+          const groupCats = state.categories.filter(c => c.groupId === group.id);
+          groupCats.sort((a, b) => a.sortOrder - b.sortOrder);
+          const isCollapsed = state.collapsedGroups.includes(group.id);
+          const groupCatCount = groupCats.reduce((sum, c) => sum + getCategoryCount(c.id), 0);
+          
+          return `
+            <div class="group-item" data-group-id="${group.id}">
+              <div class="group-header" onclick="toggleGroupCollapse('${group.id}')">
+                ${isEditing ? '<span class="drag-handle">⋮⋮</span>' : ''}
+                <span class="nav-icon">${group.icon}</span>
+                <span class="group-name">${group.name}</span>
+                <span class="nav-count">${groupCatCount}</span>
+                <span class="nav-collapse ${isCollapsed ? 'collapsed' : ''}">▼</span>
+                ${isEditing ? `<span class="nav-actions" onclick="event.stopPropagation()">
+                  <button class="nav-btn" onclick="openCategoryModal(null, '${group.id}')" title="在分组下新建分类">➕</button>
+                  <button class="nav-btn" onclick="openGroupModal('${group.id}')" title="编辑分组">✎</button>
+                  <button class="nav-btn danger" onclick="confirmDelete('group','${group.id}')" title="删除分组">✕</button>
+                </span>` : ''}
+              </div>
+              <div class="group-categories ${isCollapsed ? 'collapsed' : ''}" style="padding-left: 12px;">
+                ${groupCats.map((cat, idx) => {
+                  const count = getCategoryCount(cat.id);
+                  const isCatCollapsed = state.collapsedCats.includes(cat.id);
+                  return `
+                    <div class="category-item" draggable="${isEditing}" data-cat-id="${cat.id}" data-group-id="${group.id}" data-index="${idx}">
+                      <button class="nav-item ${state.activeCategoryId === cat.id ? 'active' : ''}" onclick="selectCategory('${cat.id}')">
+                        ${isEditing ? '<span class="drag-handle">⋮⋮</span>' : ''}
+                        <span class="nav-icon">${cat.icon}</span>
+                        ${cat.name}
+                        <span class="nav-count">${count}</span>
+                        ${isEditing ? `<span class="nav-actions">
+                          <button class="nav-btn" onclick="event.stopPropagation();openCategoryModal('${cat.id}')" title="编辑">✎</button>
+                          <button class="nav-btn danger" onclick="event.stopPropagation();confirmDelete('category','${cat.id}')" title="删除">✕</button>
+                        </span>` : ''}
+                      </button>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      ${isEditing ? `<button class="nav-item" onclick="openCategoryModal()" style="border:1px dashed var(--border);margin-top:4px;color:var(--text-muted);font-size:13px">
+        <span class="nav-icon">+</span>新建分类
+      </button>` : ''}
+    `;
+  }
+
+  function setupCategoryDragDrop() {
+    const container = document.getElementById('groups-container');
+    if (!container) return;
+    
+    let draggedItem = null;
+    let draggedCatId = null;
+    let dragSrcGroupId = null;
+    
+    container.querySelectorAll('.category-item').forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        draggedItem = item;
+        draggedCatId = item.dataset.catId;
+        dragSrcGroupId = item.dataset.groupId;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        container.querySelectorAll('.category-item, .group-categories').forEach(i => i.classList.remove('drag-over'));
+      });
+      
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (item !== draggedItem) {
+          item.classList.add('drag-over');
+        }
+      });
+      
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('drag-over');
+      });
+      
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (draggedItem && item !== draggedItem) {
+          const targetCatId = item.dataset.catId;
+          const targetGroupId = item.dataset.groupId;
+          
+          // 找到被拖拽的分类
+          const draggedCatIndex = state.categories.findIndex(c => c.id === draggedCatId);
+          if (draggedCatIndex === -1) return;
+          
+          const [draggedCat] = state.categories.splice(draggedCatIndex, 1);
+          
+          // 更新分组
+          draggedCat.groupId = targetGroupId;
+          
+          // 找到目标位置并插入
+          const targetCatIndex = state.categories.findIndex(c => c.id === targetCatId);
+          if (targetCatIndex === -1) {
+            state.categories.push(draggedCat);
+          } else {
+            state.categories.splice(targetCatIndex, 0, draggedCat);
+          }
+          
+          // 重新计算 sortOrder
+          state.groups.forEach(group => {
+            const groupCats = state.categories.filter(c => c.groupId === group.id);
+            groupCats.forEach((cat, idx) => {
+              cat.sortOrder = idx;
+            });
+          });
+          
+          saveUserData();
+          renderCategories();
+        }
+      });
+    });
+    
+    // 支持拖到分组区域（作为该分组最后一个）
+    container.querySelectorAll('.group-categories').forEach(groupContainer => {
+      groupContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        groupContainer.classList.add('drag-over');
+      });
+      
+      groupContainer.addEventListener('dragleave', () => {
+        groupContainer.classList.remove('drag-over');
+      });
+      
+      groupContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (draggedItem) {
+          const groupItem = groupContainer.closest('.group-item');
+          if (!groupItem) return;
+          
+          const targetGroupId = groupItem.dataset.groupId;
+          if (!targetGroupId) return;
+          
+          // 找到被拖拽的分类
+          const draggedCatIndex = state.categories.findIndex(c => c.id === draggedCatId);
+          if (draggedCatIndex === -1) return;
+          
+          const [draggedCat] = state.categories.splice(draggedCatIndex, 1);
+          
+          // 更新分组
+          draggedCat.groupId = targetGroupId;
+          
+          // 放到分组最后
+          state.categories.push(draggedCat);
+          
+          // 重新计算 sortOrder
+          state.groups.forEach(group => {
+            const groupCats = state.categories.filter(c => c.groupId === group.id);
+            groupCats.forEach((cat, idx) => {
+              cat.sortOrder = idx;
+            });
+          });
+          
+          saveUserData();
+          renderCategories();
+        }
+      });
+    });
+  }
+
+  function selectCategory(catId) {
+    state.activeCategoryId = catId;
+    renderCategories();
+    updateMainTitle();
+    renderBookmarks();
+  }
+
+  function toggleCategoryCollapse(catId) {
+    const idx = state.collapsedCats.indexOf(catId);
+    if (idx === -1) {
+      state.collapsedCats.push(catId);
+    } else {
+      state.collapsedCats.splice(idx, 1);
+    }
+    try {
+      localStorage.setItem('collapsed_cats_' + state.currentUser, JSON.stringify(state.collapsedCats));
+    } catch {}
+    renderCategories();
+  }
+
+  function toggleGroupCollapse(groupId) {
+    const idx = state.collapsedGroups.indexOf(groupId);
+    if (idx === -1) {
+      state.collapsedGroups.push(groupId);
+    } else {
+      state.collapsedGroups.splice(idx, 1);
+    }
+    try {
+      localStorage.setItem('collapsed_groups_' + state.currentUser, JSON.stringify(state.collapsedGroups));
+    } catch {}
+    renderCategories();
+  }
+
+  function toggleAllCategories(collapse) {
+    if (collapse) {
+      state.collapsedCats = state.categories.map(cat => cat.id);
+    } else {
+      state.collapsedCats = [];
+    }
+    try {
+      localStorage.setItem('collapsed_cats_' + state.currentUser, JSON.stringify(state.collapsedCats));
+    } catch {}
+    renderCategories();
+  }
+
+  function updateMainTitle() {
+    const el = document.getElementById('mainTitle');
+    if (!state.currentUser) {
+      el.textContent = '请先登录';
+      return;
+    }
+    if (state.activeCategoryId === '__starred__') {
+      el.innerHTML = '<span class="highlight">⭐ 星标收藏</span>';
+      return;
+    }
+    if (!state.activeCategoryId) {
+      el.innerHTML = '<span class="highlight">全部</span>收藏';
+    } else {
+      const cat = state.categories.find(c => c.id === state.activeCategoryId);
+      el.innerHTML = cat ? `${cat.icon} <span class="highlight">${cat.name}</span>` : '<span class="highlight">全部</span>收藏';
+    }
+  }
+
+  function renderBookmarks() {
+    if (!state.currentUser) {
+      document.getElementById('contentArea').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🔑</div>
+          <h3>请先登录</h3>
+          <p>点击左侧栏的「登录」按钮，或使用键盘快捷键 <span style="font-family:monospace;background:var(--bg-surface);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">E</span> 打开登录窗口</p>
+        </div>
+      `;
+      return;
+    }
+    const search = document.getElementById('searchInput').value.trim().toLowerCase();
+    let items = state.bookmarks;
+    if (state.activeCategoryId === '__starred__') {
+      items = items.filter(b => state.starred.includes(b.id));
+    } else if (state.activeCategoryId) {
+      items = items.filter(b => b.categoryId === state.activeCategoryId);
+    }
+    if (search) {
+      items = items.filter(b =>
+        b.name.toLowerCase().includes(search) ||
+        b.url.toLowerCase().includes(search)
+      );
+    }
+
+    const area = document.getElementById('contentArea');
+    if (items.length === 0) {
+      area.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">${search ? '🔍' : '📭'}</div>
+          <h3>${search ? '没有找到匹配的收藏' : '这里还没有收藏'}</h3>
+          <p>${search ? '试试其他关键词' : '点击右上角"添加"按钮开始收集你的网站和链接吧'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    items.sort((a, b) => {
+      const aStarred = state.starred.includes(a.id) ? -1 : 1;
+      const bStarred = state.starred.includes(b.id) ? -1 : 1;
+      if (aStarred !== bStarred) return aStarred - bStarred;
+      return (a.sortOrder ?? a.createdAt) - (b.sortOrder ?? b.createdAt);
+    });
+
+    const isEditing = document.body.classList.contains('editing');
+
+    area.innerHTML = `<div class="bookmarks-grid" id="bookmarksGrid">${
+      items.map(bm => {
+        const cat = state.categories.find(c => c.id === bm.categoryId);
+        const favicon = getFavicon(bm.url);
+        const isStarred = state.starred.includes(bm.id);
+        const viewsHtml = (bm.views && bm.views.length > 0)
+          ? `<div class="bm-views">${bm.views.map(v => `<span class="bm-view-tag" data-view-url="${escapeHtml(v.url)}">👁 ${escapeHtml(v.name)}</span>`).join('')}</div>`
+          : '';
+        return `
+          <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}">
+            ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
+            <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
+            <div class="bm-icon">
+              ${favicon ? `<img src="${favicon}" alt="" style="width:24px;height:24px;border-radius:4px" onerror="this.parentNode.textContent='${cat ? cat.icon.slice(0,1) : '🔗'}'">` : (cat ? cat.icon.slice(0,1) : '🔗')}
+            </div>
+            <div class="bm-body">
+              <div class="bm-name">${escapeHtml(bm.name)}</div>
+              <div class="bm-url">${escapeHtml(bm.url)}</div>
+              ${viewsHtml}
+            </div>
+            ${isEditing ? `<div class="bm-card-actions">
+              <button class="bm-card-btn edit-btn" data-id="${bm.id}" title="编辑">✎</button>
+              <button class="bm-card-btn danger delete-btn" data-id="${bm.id}" title="删除">✕</button>
+            </div>` : ''}
+          </div>
+        `;
+      }).join('')
+    }</div>`;
+
+    document.querySelectorAll('.bookmark-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const url = card.dataset.url;
+        if (url) window.open(url, '_blank');
+      });
+    });
+
+    document.querySelectorAll('.bm-view-tag').forEach(tag => {
+      tag.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const url = tag.dataset.viewUrl;
+        if (url) window.open(url, '_blank');
+      });
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (id) openBookmarkModal(id);
+      });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (id) confirmDelete('bookmark', id);
+      });
+    });
+
+    document.querySelectorAll('.star-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.starId;
+        if (id) toggleStar(id);
+      });
+    });
+
+    let dragSrcId = null;
+    document.querySelectorAll('.bookmark-card').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        if (!document.body.classList.contains('editing')) {
+          e.preventDefault();
+          return;
+        }
+        dragSrcId = card.dataset.bookmarkId;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragSrcId);
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.bookmark-card').forEach(c => c.classList.remove('drag-over'));
+      });
+      card.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (card.dataset.bookmarkId !== dragSrcId) {
+          card.classList.add('drag-over');
+        }
+      });
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-over');
+      });
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      });
+      card.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        card.classList.remove('drag-over');
+        const targetId = card.dataset.bookmarkId;
+        if (targetId && dragSrcId && targetId !== dragSrcId) {
+          reorderBookmarks(dragSrcId, targetId);
+        }
+        dragSrcId = null;
+      });
+    });
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function openBookmarkModal(id) {
+    const modal = document.getElementById('bookmarkModal');
+    const title = document.getElementById('bookmarkModalTitle');
+    const nameInput = document.getElementById('bookmarkName');
+    const urlInput = document.getElementById('bookmarkUrl');
+    const catSelect = document.getElementById('bookmarkCategory');
+    const editId = document.getElementById('editBookmarkId');
+    const container = document.getElementById('viewsContainer');
+
+    catSelect.innerHTML = state.categories.map(c =>
+      `<option value="${c.id}">${c.icon} ${c.name}</option>`
+    ).join('');
+
+    container.innerHTML = '';
+
+    const isAdminUser = isAdmin();
+    const visSection = document.getElementById('bookmarkVisibilitySection');
+    const visContainer = document.getElementById('bookmarkVisibilityContainer');
+    if (isAdminUser) {
+      const users = getUserList().filter(u => u.username !== state.currentUser);
+      visContainer.innerHTML = users.map(u => `
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+          <input type="checkbox" class="vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${u.username}
+        </label>
+      `).join('');
+      visSection.style.display = users.length > 0 ? '' : 'none';
+    } else {
+      visSection.style.display = 'none';
+    }
+
+    if (id) {
+      const bm = state.bookmarks.find(b => b.id === id);
+      if (!bm) return;
+      title.textContent = '编辑收藏';
+      nameInput.value = bm.name;
+      urlInput.value = bm.url;
+      catSelect.value = bm.categoryId;
+      editId.value = id;
+      (bm.views || []).forEach(v => addViewRow(v));
+      if (isAdminUser && bm.visibleTo) {
+        visContainer.querySelectorAll('.vis-checkbox').forEach(cb => {
+          if (bm.visibleTo.includes(cb.value)) cb.checked = true;
+        });
+      }
+    } else {
+      title.textContent = '添加收藏';
+      nameInput.value = '';
+      urlInput.value = '';
+      editId.value = '';
+      if (state.activeCategoryId && state.categories.find(c => c.id === state.activeCategoryId)) {
+        catSelect.value = state.activeCategoryId;
+      }
+      addViewRow();
+    }
+    modal.classList.add('show');
+    setTimeout(() => nameInput.focus(), 100);
+  }
+
+  function saveBookmark() {
+    const name = document.getElementById('bookmarkName').value.trim();
+    const url = document.getElementById('bookmarkUrl').value.trim();
+    const categoryId = document.getElementById('bookmarkCategory').value;
+    const editId = document.getElementById('editBookmarkId').value;
+
+    if (!name) { showToast('请输入名称'); return; }
+    if (!url) { showToast('请输入链接地址'); return; }
+    if (!categoryId) { showToast('请选择分类'); return; }
+
+    const viewRows = document.querySelectorAll('.view-row');
+    const views = [];
+    viewRows.forEach(row => {
+      const viewName = row.querySelector('.view-name-input').value.trim();
+      const viewUrl = row.querySelector('.view-url-input').value.trim();
+      if (viewName || viewUrl) {
+        views.push({ id: row.dataset.viewId || genId(), name: viewName || '视图', url: viewUrl });
+      }
+    });
+
+    if (editId) {
+      const bm = state.bookmarks.find(b => b.id === editId);
+      if (bm) { bm.name = name; bm.url = url; bm.views = views; bm.categoryId = categoryId; }
+    } else {
+      const maxOrder = state.bookmarks.reduce((max, b) => Math.max(max, b.sortOrder ?? 0), -1);
+      state.bookmarks.push({ id: genId(), name, url, views, categoryId, sortOrder: maxOrder + 1, createdAt: Date.now() });
+    }
+
+    if (isAdmin()) {
+      const checked = [];
+      document.querySelectorAll('.vis-checkbox:checked').forEach(cb => checked.push(cb.value));
+      if (editId) {
+        const bm = state.bookmarks.find(b => b.id === editId);
+        if (bm) bm.visibleTo = checked.length > 0 ? checked : undefined;
+      } else {
+        state.bookmarks[state.bookmarks.length - 1].visibleTo = checked.length > 0 ? checked : undefined;
+      }
+    }
+
+    saveUserData();
+    closeModal('bookmarkModal');
+    renderCategories();
+    renderBookmarks();
+    showToast(editId ? '已更新收藏' : '已添加收藏');
+  }
+
+  function addViewRow(data) {
+    const container = document.getElementById('viewsContainer');
+    const vid = data ? data.id : genId();
+    const row = document.createElement('div');
+    row.className = 'view-row';
+    row.dataset.viewId = vid;
+    row.innerHTML = `
+      <div class="view-fields">
+        <input class="view-name-input" type="text" placeholder="视图名称（如：数据看板）" maxlength="30" value="${escapeHtml(data ? data.name : '')}">
+        <input class="view-url-input" type="url" placeholder="视图链接地址" value="${escapeHtml(data ? data.url : '')}">
+      </div>
+      <button class="view-remove-btn" onclick="this.parentElement.remove()" title="移除视图">✕</button>
+    `;
+    container.appendChild(row);
+  }
+
+  function reorderBookmarks(srcId, targetId) {
+    const items = state.bookmarks;
+    const srcIdx = items.findIndex(b => b.id === srcId);
+    const targetIdx = items.findIndex(b => b.id === targetId);
+    if (srcIdx === -1 || targetIdx === -1) return;
+
+    const [moved] = items.splice(srcIdx, 1);
+    items.splice(targetIdx, 0, moved);
+
+    items.forEach((b, i) => { b.sortOrder = i; });
+    saveUserData();
+    renderBookmarks();
+    showToast('顺序已调整');
+  }
+
+  function openCategoryModal(id, targetGroupId) {
+    const modal = document.getElementById('categoryModal');
+    const title = document.getElementById('categoryModalTitle');
+    const nameInput = document.getElementById('categoryName');
+    const iconInput = document.getElementById('categoryIcon');
+    const editId = document.getElementById('editCategoryId');
+    const visSection = document.getElementById('catVisibilitySection');
+    const visContainer = document.getElementById('catVisibilityContainer');
+    const newCatGroupId = document.getElementById('newCategoryGroupId');
+    
+    newCatGroupId.value = targetGroupId || '';
+
+    // 添加分组选择
+    let groupSelectHtml = '';
+    if (state.groups.length > 0) {
+      groupSelectHtml = `
+        <div class="form-group">
+          <label>所属分组</label>
+          <select id="categoryGroup">
+            ${state.groups.map(g => `<option value="${g.id}">${g.icon} ${g.name}</option>`).join('')}
+          </select>
+        </div>
+      `;
+    }
+    
+    // 插入到图标输入后面
+    const formGroups = modal.querySelectorAll('.form-group');
+    if (formGroups.length === 2 && !document.getElementById('categoryGroup')) {
+      formGroups[1].insertAdjacentHTML('afterend', groupSelectHtml);
+    }
+
+    if (isAdmin()) {
+      const users = getUserList().filter(u => u.username !== state.currentUser);
+      visContainer.innerHTML = users.map(u => `
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+          <input type="checkbox" class="cat-vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${u.username}
+        </label>
+      `).join('');
+      visSection.style.display = users.length > 0 ? '' : 'none';
+    } else {
+      visSection.style.display = 'none';
+    }
+
+    if (id) {
+      const cat = state.categories.find(c => c.id === id);
+      if (!cat) return;
+      title.textContent = '编辑分类';
+      nameInput.value = cat.name;
+      iconInput.value = cat.icon;
+      editId.value = id;
+      
+      // 设置分组
+      const groupSelect = document.getElementById('categoryGroup');
+      if (groupSelect && cat.groupId) {
+        groupSelect.value = cat.groupId;
+      }
+      
+      if (isAdmin() && cat.visibleTo) {
+        visContainer.querySelectorAll('.cat-vis-checkbox').forEach(cb => {
+          if (cat.visibleTo.includes(cb.value)) cb.checked = true;
+        });
+      }
+    } else {
+      title.textContent = '新建分类';
+      nameInput.value = '';
+      iconInput.value = '📁';
+      editId.value = '';
+      
+      // 设置默认分组
+      const groupSelect = document.getElementById('categoryGroup');
+      const defaultGroupId = targetGroupId || (state.groups[0] ? state.groups[0].id : '');
+      if (groupSelect && defaultGroupId) {
+        groupSelect.value = defaultGroupId;
+      }
+    }
+    modal.classList.add('show');
+    setTimeout(() => nameInput.focus(), 100);
+  }
+
+  function saveCategory() {
+    const name = document.getElementById('categoryName').value.trim();
+    const icon = document.getElementById('categoryIcon').value.trim() || '📁';
+    const editId = document.getElementById('editCategoryId').value;
+    const newCatGroupId = document.getElementById('newCategoryGroupId').value;
+    const groupSelect = document.getElementById('categoryGroup');
+    let groupId = groupSelect ? groupSelect.value : (newCatGroupId || (state.groups[0] ? state.groups[0].id : ''));
+
+    if (!name) { showToast('请输入分类名称'); return; }
+    if (!groupId && state.groups.length > 0) { groupId = state.groups[0].id; }
+
+    if (editId) {
+      const cat = state.categories.find(c => c.id === editId);
+      if (cat) { cat.name = name; cat.icon = icon; cat.groupId = groupId; }
+    } else {
+      const groupCats = state.categories.filter(c => c.groupId === groupId);
+      const maxOrder = groupCats.reduce((max, c) => Math.max(max, c.sortOrder ?? -1), -1);
+      state.categories.push({ id: genId(), name, icon, groupId, sortOrder: maxOrder + 1 });
+    }
+
+    if (isAdmin()) {
+      const checked = [];
+      document.querySelectorAll('.cat-vis-checkbox:checked').forEach(cb => checked.push(cb.value));
+      if (editId) {
+        const cat = state.categories.find(c => c.id === editId);
+        if (cat) cat.visibleTo = checked.length > 0 ? checked : undefined;
+      } else {
+        state.categories[state.categories.length - 1].visibleTo = checked.length > 0 ? checked : undefined;
+      }
+    }
+
+    saveUserData();
+    closeModal('categoryModal');
+    renderCategories();
+    updateMainTitle();
+    renderBookmarks();
+    showToast(editId ? '已更新分类' : '已新建分类');
+  }
+
+  function openGroupModal(id) {
+    const modal = document.getElementById('groupModal');
+    const title = document.getElementById('groupModalTitle');
+    const nameInput = document.getElementById('groupName');
+    const iconInput = document.getElementById('groupIcon');
+    const editId = document.getElementById('editGroupId');
+
+    if (id) {
+      const group = state.groups.find(g => g.id === id);
+      if (!group) return;
+      title.textContent = '编辑分组';
+      nameInput.value = group.name;
+      iconInput.value = group.icon;
+      editId.value = id;
+    } else {
+      title.textContent = '新建分组';
+      nameInput.value = '';
+      iconInput.value = '📁';
+      editId.value = '';
+    }
+    modal.classList.add('show');
+    setTimeout(() => nameInput.focus(), 100);
+  }
+
+  function saveGroup() {
+    const name = document.getElementById('groupName').value.trim();
+    const icon = document.getElementById('groupIcon').value.trim() || '📁';
+    const editId = document.getElementById('editGroupId').value;
+
+    if (!name) { showToast('请输入分组名称'); return; }
+
+    if (editId) {
+      const group = state.groups.find(g => g.id === editId);
+      if (group) { group.name = name; group.icon = icon; }
+    } else {
+      const maxOrder = state.groups.reduce((max, g) => Math.max(max, g.sortOrder ?? -1), -1);
+      state.groups.push({ id: genId(), name, icon, sortOrder: maxOrder + 1 });
+    }
+
+    saveUserData();
+    closeModal('groupModal');
+    renderCategories();
+    showToast(editId ? '已更新分组' : '已新建分组');
+  }
+
+  function confirmDelete(type, id) {
+    const modal = document.getElementById('confirmModal');
+    const title = document.getElementById('confirmTitle');
+    const text = document.getElementById('confirmText');
+
+    if (type === 'group') {
+      const group = state.groups.find(g => g.id === id);
+      const groupCats = state.categories.filter(c => c.groupId === id);
+      const totalBms = groupCats.reduce((sum, c) => sum + getCategoryCount(c.id), 0);
+      title.textContent = '删除分组';
+      text.textContent = totalBms > 0
+        ? `确定要删除分组「${group.name}」吗？该分组下的 ${groupCats.length} 个分类和 ${totalBms} 个收藏也将被一并删除。`
+        : `确定要删除分组「${group.name}」吗？`;
+    } else if (type === 'category') {
+      const cat = state.categories.find(c => c.id === id);
+      const count = getCategoryCount(id);
+      title.textContent = '删除分类';
+      text.textContent = count > 0
+        ? `确定要删除分类「${cat.name}」吗？该分类下的 ${count} 个收藏也将被一并删除。`
+        : `确定要删除分类「${cat.name}」吗？`;
+    } else {
+      const bm = state.bookmarks.find(b => b.id === id);
+      title.textContent = '删除收藏';
+      text.textContent = `确定要删除「${bm ? bm.name : '此项'}」吗？`;
+    }
+
+    confirmCallback = () => {
+      if (type === 'group') {
+        const groupCats = state.categories.filter(c => c.groupId === id);
+        const groupCatIds = groupCats.map(c => c.id);
+        state.bookmarks = state.bookmarks.filter(b => !groupCatIds.includes(b.categoryId));
+        state.categories = state.categories.filter(c => c.groupId !== id);
+        state.groups = state.groups.filter(g => g.id !== id);
+      } else if (type === 'category') {
+        state.bookmarks = state.bookmarks.filter(b => b.categoryId !== id);
+        state.categories = state.categories.filter(c => c.id !== id);
+        if (state.activeCategoryId === id) { state.activeCategoryId = null; }
+      } else {
+        state.bookmarks = state.bookmarks.filter(b => b.id !== id);
+      }
+      saveUserData();
+      closeModal('confirmModal');
+      renderCategories();
+      updateMainTitle();
+      renderBookmarks();
+      showToast('已删除');
+    };
+
+    modal.classList.add('show');
+  }
+
+  function confirmAction() {
+    if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('show');
+    confirmCallback = null;
+  }
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  function exportData() {
+    const data = JSON.stringify({ categories: state.categories, bookmarks: state.bookmarks }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `收藏架_备份_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('数据已导出');
+  }
+
+  function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.categories && data.bookmarks) {
+          state.categories = data.categories;
+          state.bookmarks = data.bookmarks;
+          state.activeCategoryId = null;
+          saveUserData();
+          renderCategories();
+          updateMainTitle();
+          renderBookmarks();
+          showToast('数据已导入');
+        } else {
+          showToast('文件格式不正确');
+        }
+      } catch { showToast('文件解析失败'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function importBookmarksHtml(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const html = e.target.result;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const links = doc.querySelectorAll('a[href]');
+        let count = 0;
+        links.forEach(a => {
+          const href = a.getAttribute('href');
+          const name = a.textContent.trim();
+          if (href && name && href.startsWith('http')) {
+            const folder = a.closest('dl') ? a.closest('dl').previousElementSibling : null;
+            const folderName = folder ? folder.textContent.trim() : '导入书签';
+            let cat = state.categories.find(c => c.name === folderName);
+            if (!cat) {
+              cat = { id: genId(), name: folderName, icon: '📎' };
+              state.categories.push(cat);
+            }
+            const maxOrder = state.bookmarks.reduce((max, b) => Math.max(max, b.sortOrder ?? 0), -1);
+            state.bookmarks.push({ id: genId(), name, url: href, views: [], categoryId: cat.id, sortOrder: maxOrder + 1, createdAt: Date.now() });
+            count++;
+          }
+        });
+        if (count > 0) {
+          saveUserData();
+          renderCategories();
+          renderBookmarks();
+          updateMainTitle();
+          showToast(`已导入 ${count} 个书签`);
+        } else {
+          showToast('未找到可导入的书签');
+        }
+      } catch { showToast('文件解析失败'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function importBookmarksCsv(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) { showToast('CSV文件为空或只有表头'); return; }
+        const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const nameIdx = header.indexOf('名称') !== -1 ? header.indexOf('名称') : header.indexOf('name');
+        const urlIdx = header.indexOf('链接') !== -1 ? header.indexOf('链接') : header.indexOf('url');
+        const catIdx = header.indexOf('分类') !== -1 ? header.indexOf('分类') : header.indexOf('category');
+        const viewsIdx = header.indexOf('视图') !== -1 ? header.indexOf('视图') : header.indexOf('views');
+
+        if (nameIdx === -1 || urlIdx === -1) { showToast('CSV需要包含"名称"和"链接"列'); return; }
+
+        const parseField = (val) => {
+          if (!val) return '';
+          val = val.trim();
+          if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+          return val;
+        };
+
+        let count = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(parseField);
+          const name = cols[nameIdx];
+          const url = cols[urlIdx];
+          if (!name || !url || !url.startsWith('http')) continue;
+
+          const catName = catIdx !== -1 && cols[catIdx] ? cols[catIdx].trim() : '导入数据';
+          let cat = state.categories.find(c => c.name === catName);
+          if (!cat) {
+            cat = { id: genId(), name: catName, icon: '📎' };
+            state.categories.push(cat);
+          }
+
+          let views = [];
+          if (viewsIdx !== -1 && cols[viewsIdx]) {
+            cols[viewsIdx].split('|').forEach(v => {
+              const parts = v.split('::');
+              if (parts.length === 2) {
+                views.push({ id: genId(), name: parts[0].trim(), url: parts[1].trim() });
+              }
+            });
+          }
+
+          const maxOrder = state.bookmarks.reduce((max, b) => Math.max(max, b.sortOrder ?? 0), -1);
+          state.bookmarks.push({ id: genId(), name, url, views, categoryId: cat.id, sortOrder: maxOrder + 1, createdAt: Date.now() });
+          count++;
+        }
+
+        if (count > 0) {
+          saveUserData();
+          renderCategories();
+          renderBookmarks();
+          updateMainTitle();
+          showToast(`已从CSV导入 ${count} 个收藏`);
+        } else {
+          showToast('未找到可导入的数据');
+        }
+      } catch { showToast('CSV文件解析失败'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function downloadImportTemplate() {
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+    container.onclick = (e) => { if (e.target === container) container.remove(); };
+
+    container.innerHTML = `
+      <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:320px;width:90%;text-align:center">
+        <div style="font-size:16px;font-weight:600;margin-bottom:16px">选择模板格式</div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:8px;padding:10px" onclick="this.closest('div[style]').parentElement.remove();downloadJsonTemplate()">📄 JSON 模板</button>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">适合开发者，结构清晰</div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:8px;padding:10px" onclick="this.closest('div[style]').parentElement.remove();downloadCsvTemplate()">📊 CSV 模板</button>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">适合Excel/WPS，可直接用表格编辑</div>
+        <button class="btn btn-cancel" onclick="this.closest('div[style]').parentElement.remove()" style="width:100%;padding:10px">取消</button>
+      </div>
+    `;
+    document.body.appendChild(container);
+  }
+
+  function downloadJsonTemplate() {
+    const template = {
+      categories: [
+        { id: 'cat1', name: '常用网站', icon: '🌐' },
+        { id: 'cat2', name: '开发工具', icon: '🛠' }
+      ],
+      bookmarks: [
+        { id: 'bm1', name: 'GitHub', url: 'https://github.com', views: [], categoryId: 'cat1', sortOrder: 0, createdAt: Date.now() },
+        { id: 'bm2', name: 'Stack Overflow', url: 'https://stackoverflow.com', views: [{ id: 'v1', name: '问答首页', url: 'https://stackoverflow.com/questions' }], categoryId: 'cat1', sortOrder: 1, createdAt: Date.now() },
+        { id: 'bm3', name: 'VS Code', url: 'https://code.visualstudio.com', views: [], categoryId: 'cat2', sortOrder: 0, createdAt: Date.now() }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '收藏架_导入模板.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('已下载JSON模板');
+  }
+
+  function downloadCsvTemplate() {
+    const csv = '\uFEFF名称,链接,分类,视图\n' +
+      'GitHub,https://github.com,常用网站,\n' +
+      'Stack Overflow,https://stackoverflow.com,常用网站,"问答首页::https://stackoverflow.com/questions"\n' +
+      'VS Code,https://code.visualstudio.com,开发工具,\n';
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '收藏架_导入模板.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('已下载CSV模板');
+  }
+
+  // 编码字符串（支持中文字符）
+  function encodeStr(str) {
+    try {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+    } catch {
+      return btoa(str);
+    }
+  }
+
+  // 解码字符串（支持中文字符）
+  function decodeStr(str) {
+    try {
+      return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    } catch {
+      return atob(str);
+    }
+  }
+
+  function openChangePasswordModal() {
+    document.getElementById('changePwdOld').value = '';
+    document.getElementById('changePwdNew').value = '';
+    document.getElementById('changePwdConfirm').value = '';
+    document.getElementById('changePwdError').style.display = 'none';
+    document.getElementById('changePwdModal').classList.add('show');
+    setTimeout(() => document.getElementById('changePwdOld').focus(), 100);
+  }
+
+  function confirmChangePassword() {
+    const oldPwd = document.getElementById('changePwdOld').value;
+    const newPwd = document.getElementById('changePwdNew').value;
+    const confirmPwd = document.getElementById('changePwdConfirm').value;
+    const errorEl = document.getElementById('changePwdError');
+    const db = getDb();
+
+    if (!oldPwd) { errorEl.textContent = '请输入当前密码'; errorEl.style.display = ''; return; }
+    if (!newPwd) { errorEl.textContent = '请输入新密码'; errorEl.style.display = ''; return; }
+    if (newPwd !== confirmPwd) { errorEl.textContent = '两次新密码不一致'; errorEl.style.display = ''; return; }
+
+    const user = db.users[state.currentUser];
+    if (!user || user.password !== encodeStr(oldPwd)) {
+      errorEl.textContent = '当前密码错误';
+      errorEl.style.display = '';
+      return;
+    }
+
+    user.password = encodeStr(newPwd);
+    saveDb(db);
+    closeModal('changePwdModal');
+    showToast('密码已修改');
+  }
+
+  function toggleEditMode() {
+    if (document.body.classList.contains('editing')) {
+      document.body.classList.remove('editing');
+      const btn = document.getElementById('editToggleBtn');
+      btn.textContent = '✎';
+      btn.title = '编辑模式';
+      renderCategories();
+      renderBookmarks();
+      showToast('已退出编辑模式');
+      return;
+    }
+    if (state.currentUser && isAdmin()) {
+      document.body.classList.add('editing');
+      document.getElementById('editToggleBtn').textContent = '✓';
+      document.getElementById('editToggleBtn').title = '退出编辑模式';
+      renderCategories();
+      renderBookmarks();
+      showToast('已进入编辑模式');
+      return;
+    }
+    showPasswordModal();
+  }
+
+  function showPasswordModal() {
+    const db = getDb();
+    const hasUsers = Object.keys(db.users).length > 0;
+
+    if (!hasUsers) {
+      document.getElementById('passwordModalTitle').textContent = '创建管理员账号';
+      document.getElementById('passwordSetupNotice').style.display = '';
+      document.getElementById('passwordNormalNotice').style.display = 'none';
+      document.getElementById('passwordConfirmBtn').textContent = '创建';
+    } else {
+      document.getElementById('passwordModalTitle').textContent = '验证身份';
+      document.getElementById('passwordSetupNotice').style.display = 'none';
+      document.getElementById('passwordNormalNotice').style.display = '';
+      document.getElementById('passwordConfirmBtn').textContent = '确定';
+    }
+    document.getElementById('usernameInput').value = '';
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordError').style.display = 'none';
+    document.getElementById('passwordModal').classList.add('show');
+    setTimeout(() => document.getElementById('usernameInput').focus(), 100);
+  }
+
+  function closePasswordModal() {
+    document.getElementById('passwordModal').classList.remove('show');
+  }
+
+  function confirmPassword() {
+    const username = document.getElementById('usernameInput').value.trim();
+    const password = document.getElementById('passwordInput').value;
+    const errorEl = document.getElementById('passwordError');
+    const db = getDb();
+    const hasUsers = Object.keys(db.users).length > 0;
+
+    if (!username || !password) {
+      errorEl.textContent = '请输入账号和密码';
+      errorEl.style.display = '';
+      return;
+    }
+
+    if (!hasUsers) {
+      const question = document.getElementById('securityQuestionSelect').value;
+      const answer = document.getElementById('securityAnswerInput').value.trim().toLowerCase();
+      if (!answer) {
+        errorEl.textContent = '请设置密保答案';
+        errorEl.style.display = '';
+        return;
+      }
+      db.users[username] = { password: encodeStr(password), role: 'admin', securityQ: question, securityA: answer };
+      db.userData[username] = { categories: [], bookmarks: [] };
+      saveDb(db);
+      state.currentUser = username;
+      loadUserData(username);
+      closePasswordModal();
+      afterLogin();
+      showToast('管理员账号已创建');
+      return;
+    }
+
+    let passwordMatch = false;
+    if (db.users[username]) {
+      const storedPwd = db.users[username].password;
+      // 先用新方式验证
+      if (storedPwd === encodeStr(password)) {
+        passwordMatch = true;
+      } else {
+        // 如果新方式不匹配，尝试用旧方式验证
+        try {
+          if (storedPwd === btoa(password)) {
+            passwordMatch = true;
+            // 验证成功后，自动升级为新的编码方式
+            db.users[username].password = encodeStr(password);
+            saveDb(db);
+          }
+        } catch {}
+      }
+    }
+    
+    if (db.users[username] && passwordMatch) {
+      state.currentUser = username;
+      loadUserData(username);
+      closePasswordModal();
+      afterLogin();
+    } else {
+      errorEl.textContent = '账号或密码错误，请重试';
+      errorEl.style.display = '';
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('passwordInput').focus();
+    }
+  }
+
+  function afterLogin() {
+    // 保存登录状态
+    try {
+      localStorage.setItem('currentUser', state.currentUser);
+    } catch {}
+    
+    const db = getDb();
+    const isAdminUser = isAdmin();
+    const isMockUser = db.users[state.currentUser]?.isMock;
+    
+    let userText = state.currentUser;
+    if (isAdminUser) {
+      userText += ' 👑';
+    }
+    if (isMockUser) {
+      userText += ' (测试)';
+    }
+    
+    document.getElementById('userIndicator').textContent = userText;
+    document.getElementById('userIndicator').style.display = '';
+    document.getElementById('userIndicator').style.color = isAdminUser ? 'var(--accent)' : 'var(--text-muted)';
+    document.getElementById('userIndicator').style.fontWeight = isAdminUser ? '600' : 'normal';
+    
+    document.getElementById('loginSidebarBtn').style.display = 'none';
+    document.getElementById('sidebarLogoutRow').style.display = '';
+
+    if (isAdminUser) {
+      document.getElementById('editToggleBtn').style.display = '';
+      document.body.classList.add('editing');
+      document.getElementById('editToggleBtn').textContent = '✓';
+      document.getElementById('editToggleBtn').title = '退出编辑模式';
+      document.getElementById('userMgrBtn').style.display = '';
+    } else {
+      document.getElementById('editToggleBtn').style.display = 'none';
+      document.getElementById('userMgrBtn').style.display = 'none';
+    }
+
+    updateMainTitle();
+    renderCategories();
+    renderBookmarks();
+  }
+
+  function logout() {
+    // 清除登录状态
+    try {
+      localStorage.removeItem('currentUser');
+    } catch {}
+    
+    if (document.body.classList.contains('editing')) {
+      document.body.classList.remove('editing');
+      document.getElementById('editToggleBtn').textContent = '✎';
+    }
+    state.currentUser = null;
+    state.categories = [];
+    state.bookmarks = [];
+    state.activeCategoryId = null;
+    document.getElementById('userIndicator').style.display = 'none';
+    document.getElementById('editToggleBtn').style.display = 'none';
+    document.getElementById('userMgrBtn').style.display = 'none';
+    document.getElementById('sidebarLogoutRow').style.display = 'none';
+    document.getElementById('loginSidebarBtn').style.display = '';
+    renderCategories();
+    renderBookmarks();
+    showPasswordModal();
+  }
+
+  function showLoginModal() {
+    showPasswordModal();
+  }
+
+  function toggleStar(id) {
+    const idx = state.starred.indexOf(id);
+    if (idx === -1) {
+      state.starred.push(id);
+    } else {
+      state.starred.splice(idx, 1);
+    }
+    try {
+      localStorage.setItem('starred_' + state.currentUser, JSON.stringify(state.starred));
+    } catch {}
+    renderCategories();
+    renderBookmarks();
+  }
+
+  function showShortcuts() {
+    document.getElementById('shortcutsModal').classList.add('show');
+  }
+
+  function showRegisterModal() {
+    document.getElementById('regUsernameInput').value = '';
+    document.getElementById('regPasswordInput').value = '';
+    document.getElementById('regPasswordConfirmInput').value = '';
+    document.getElementById('regAnswerInput').value = '';
+    document.getElementById('registerError').style.display = 'none';
+    closePasswordModal();
+    document.getElementById('registerModal').classList.add('show');
+    setTimeout(() => document.getElementById('regUsernameInput').focus(), 100);
+  }
+
+  function confirmRegister() {
+    const username = document.getElementById('regUsernameInput').value.trim();
+    const password = document.getElementById('regPasswordInput').value;
+    const passwordConfirm = document.getElementById('regPasswordConfirmInput').value;
+    const question = document.getElementById('regQuestionSelect').value;
+    const answer = document.getElementById('regAnswerInput').value.trim().toLowerCase();
+    const errorEl = document.getElementById('registerError');
+    const db = getDb();
+
+    if (!username) { errorEl.textContent = '请输入账号'; errorEl.style.display = ''; return; }
+    if (!password) { errorEl.textContent = '请输入密码'; errorEl.style.display = ''; return; }
+    if (password !== passwordConfirm) { errorEl.textContent = '两次密码不一致'; errorEl.style.display = ''; return; }
+    if (!answer) { errorEl.textContent = '请设置密保答案'; errorEl.style.display = ''; return; }
+
+    if (db.users[username]) {
+      errorEl.textContent = '账号已存在';
+      errorEl.style.display = '';
+      return;
+    }
+
+    db.users[username] = { password: encodeStr(password), role: 'user', securityQ: question, securityA: answer };
+    if (!db.userData) db.userData = {};
+    saveDb(db);
+
+    closeModal('registerModal');
+    showPasswordModal();
+    document.getElementById('usernameInput').value = username;
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordInput').focus();
+    showToast('注册成功，请登录');
+  }
+
+  function openUserManager() {
+    renderUserList();
+    document.getElementById('mockUsernameInput').value = '';
+    document.getElementById('userMgrModal').classList.add('show');
+  }
+
+  function renderUserList() {
+    const area = document.getElementById('userListArea');
+    const users = getUserList();
+    let html = `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
+        <span style="flex:2">账号</span>
+        <span style="flex:1;text-align:center">角色</span>
+        <span style="flex:1;text-align:center">操作</span>
+      </div>
+    `;
+    users.forEach(u => {
+      const isAdmin = u.role === 'admin';
+      const isCurrent = state.currentUser === u.username;
+      let userColor = 'var(--text-primary)';
+      let fontWeight = 'normal';
+      let selectBg = 'var(--bg-card)';
+      let selectBorder = 'var(--border)';
+      let selectColor = 'var(--text-primary)';
+      if (isAdmin) {
+        userColor = 'var(--accent)';
+        fontWeight = '600';
+        selectBg = 'var(--accent)';
+        selectBorder = 'var(--accent)';
+        selectColor = 'white';
+      }
+      let extraText = '';
+      if (isCurrent) {
+        extraText += '<span style="color:var(--accent);font-size:11px">(当前)</span>';
+      }
+      if (u.isMock) {
+        extraText += '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 6px;border-radius:4px;margin-left:4px">测试</span>';
+      }
+      let actionText = '';
+      if (u.username !== state.currentUser) {
+        actionText = `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
+      } else {
+        actionText = '<span style="color:var(--text-muted);font-size:11px">-</span>';
+      }
+      html += `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px">
+          <span style="flex:2;font-weight:${fontWeight};color:${userColor}">
+            ${u.username} ${extraText}
+          </span>
+          <span style="flex:1;text-align:center">
+            <select onchange="changeUserRole('${u.username}',this.value)" style="background:${selectBg};border:1px solid ${selectBorder};border-radius:4px;color:${selectColor};font-size:12px;padding:2px 6px;cursor:pointer">
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>普通</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>管理</option>
+            </select>
+          </span>
+          <span style="flex:1;text-align:center">${actionText}</span>
+        </div>
+      `;
+    });
+    html += `<div style="color:var(--text-muted);font-size:11px;padding-top:8px">共 ${users.length} 个账号</div>`;
+    area.innerHTML = html;
+  }
+
+  function changeUserRole(username, role) {
+    const db = getDb();
+    if (db.users[username]) {
+      db.users[username].role = role;
+      saveDb(db);
+      if (state.currentUser === username) {
+        loadUserData(username);
+        renderCategories();
+        renderBookmarks();
+        updateMainTitle();
+      }
+      showToast(`已更新 ${username} 角色`);
+    }
+  }
+
+  function deleteUser(username) {
+    if (!confirm(`确定要删除用户「${username}」吗？此操作不可恢复。`)) return;
+    const db = getDb();
+    delete db.users[username];
+    saveDb(db);
+    renderUserList();
+    showToast(`已删除 ${username}`);
+  }
+
+  function addMockAccount() {
+    const input = document.getElementById('mockUsernameInput');
+    const username = input.value.trim();
+    if (!username) { showToast('请输入账号名'); return; }
+    const db = getDb();
+    if (db.users[username]) { showToast('账号已存在'); return; }
+    db.users[username] = { password: encodeStr('123456'), role: 'user', securityQ: '你的出生地是哪里？', securityA: '测试', isMock: true };
+    saveDb(db);
+    input.value = '';
+    renderUserList();
+    showToast(`已添加测试账号「${username}」(密码: 123456)`);
+  }
+
+  function addBatchMockAccounts() {
+    const names = ['张三', '李四', '王五', '赵六', '测试员A', '测试员B'];
+    const db = getDb();
+    let added = 0;
+    names.forEach(name => {
+      if (!db.users[name]) {
+        db.users[name] = { password: encodeStr('123456'), role: 'user', securityQ: '你的出生地是哪里？', securityA: '测试', isMock: true };
+        added++;
+      }
+    });
+    if (added > 0) {
+      saveDb(db);
+      renderUserList();
+      showToast(`已批量添加 ${added} 个测试账号 (密码: 123456)`);
+    } else {
+      showToast('所有测试账号已存在');
+    }
+  }
+
+  function showResetPasswordModal() {
+    document.getElementById('resetUsernameInput').value = '';
+    document.getElementById('resetAnswerInput').value = '';
+    document.getElementById('resetNewPwdInput').value = '';
+    document.getElementById('resetQuestionArea').style.display = 'none';
+    document.getElementById('resetPwdConfirmBtn').textContent = '下一步';
+    document.getElementById('resetPwdConfirmBtn').onclick = showResetQuestion;
+    document.getElementById('resetError').style.display = 'none';
+    closePasswordModal();
+    document.getElementById('resetPwdModal').classList.add('show');
+    setTimeout(() => document.getElementById('resetUsernameInput').focus(), 100);
+  }
+
+  function showResetQuestion() {
+    const username = document.getElementById('resetUsernameInput').value.trim();
+    const db = getDb();
+    const resetError = document.getElementById('resetError');
+
+    if (!username) {
+      resetError.textContent = '请输入账号';
+      resetError.style.display = '';
+      return;
+    }
+
+    if (!db.users[username]) {
+      resetError.textContent = '账号不存在';
+      resetError.style.display = '';
+      return;
+    }
+
+    const questionArea = document.getElementById('resetQuestionArea');
+    if (questionArea.style.display === 'none' || !questionArea.style.display) {
+      document.getElementById('resetQuestionText').textContent = db.users[username].securityQ || '（账号早期创建无密保问题）';
+      questionArea.style.display = '';
+      document.getElementById('resetPwdConfirmBtn').textContent = '重置密码';
+      document.getElementById('resetPwdConfirmBtn').onclick = confirmResetPassword;
+      resetError.style.display = 'none';
+    }
+  }
+
+  function confirmResetPassword() {
+    const username = document.getElementById('resetUsernameInput').value.trim();
+    const answer = document.getElementById('resetAnswerInput').value.trim().toLowerCase();
+    const newPwd = document.getElementById('resetNewPwdInput').value;
+    const db = getDb();
+    const resetError = document.getElementById('resetError');
+
+    if (!answer) {
+      resetError.textContent = '请输入密保答案';
+      resetError.style.display = '';
+      return;
+    }
+    if (!newPwd) {
+      resetError.textContent = '请输入新密码';
+      resetError.style.display = '';
+      return;
+    }
+
+    // 兼容旧数据（可能是编码的，也可能不是编码的）
+    const storedAnswer = db.users[username]?.securityA;
+    let answerMatch = false;
+    if (storedAnswer) {
+      answerMatch = (storedAnswer === answer);
+      if (!answerMatch) {
+        // 尝试解码后匹配
+        try {
+          answerMatch = (decodeStr(storedAnswer) === answer);
+        } catch {}
+      }
+    }
+
+    if (db.users[username] && answerMatch) {
+      db.users[username].password = encodeStr(newPwd);
+      saveDb(db);
+      document.getElementById('resetPwdModal').classList.remove('show');
+      showPasswordModal();
+      showToast('密码已重置，请使用新密码登录');
+    } else {
+      resetError.textContent = '密保答案错误';
+      resetError.style.display = '';
+    }
+  }
+
+  document.getElementById('menuToggle').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  });
+  document.getElementById('sidebarOverlay').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.show').forEach(el => el.classList.remove('show'));
+      confirmCallback = null;
+    }
+    if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      showShortcuts();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      const inp = document.getElementById('searchInput');
+      inp.focus();
+      inp.select();
+    }
+    if (e.key === 'e' && !e.ctrlKey && !e.metaKey && !e.target.closest('input,select,textarea')) {
+      if (document.body.classList.contains('editing')) {
+        document.body.classList.remove('editing');
+        const btn = document.getElementById('editToggleBtn');
+        btn.textContent = '✎';
+        btn.title = '编辑模式';
+        renderCategories();
+        renderBookmarks();
+        showToast('已退出编辑模式');
+      } else {
+        showPasswordModal();
+      }
+    }
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target === el) { el.classList.remove('show'); confirmCallback = null; }
+    });
+  });
+
+  document.getElementById('editToggleBtn').style.display = 'none';
+  document.getElementById('loginSidebarBtn').style.display = '';
+  
+  // 检查是否有保存的登录状态，有则自动登录
+  (function tryAutoLogin() {
+    try {
+      const savedUser = localStorage.getItem('currentUser');
+      const db = getDb();
+      if (savedUser && db.users[savedUser]) {
+        state.currentUser = savedUser;
+        loadUserData(savedUser);
+        afterLogin();
+        showToast('已自动登录');
+        return;
+      }
+    } catch {}
+    // 如果没有保存的登录状态或自动登录失败，则显示登录弹窗
+    showPasswordModal();
+  })();
+</script>
+</body>
+</html>
