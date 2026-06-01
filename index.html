@@ -1167,6 +1167,9 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_ygOzlcXJDNWu6p2tei27dw_3hXySaV1';
   let sbClient = null;
   
+  // 全局数据库缓存
+  let globalDb = null;
+  
   // 本地缓存
   let cachedDb = null;
   let lastCacheTime = 0;
@@ -1221,6 +1224,20 @@
     return computedHash === hash;
   }
 
+  // 同步获取数据库（使用缓存）
+  function getDbSync() {
+    if (globalDb) return globalDb;
+    // 如果没有缓存，从 localStorage 读取
+    try {
+      const raw = localStorage.getItem('my_collection_data');
+      if (raw) {
+        globalDb = JSON.parse(raw);
+        return globalDb;
+      }
+    } catch {}
+    return { users: {}, userData: {} };
+  }
+
   // 从 Supabase 读取数据
   async function getDb() {
     initSupabase();
@@ -1228,6 +1245,7 @@
     // 检查缓存
     const now = Date.now();
     if (cachedDb && now - lastCacheTime < CACHE_TTL) {
+      globalDb = cachedDb;
       return cachedDb;
     }
     
@@ -1235,9 +1253,13 @@
       // 回退到 localStorage
       try {
         const raw = localStorage.getItem('my_collection_data');
-        if (raw) return JSON.parse(raw);
+        if (raw) {
+          globalDb = JSON.parse(raw);
+          return globalDb;
+        }
       } catch {}
-      return { users: {}, userData: {} };
+      globalDb = { users: {}, userData: {} };
+      return globalDb;
     }
     
     try {
@@ -1265,6 +1287,7 @@
       });
       
       cachedDb = db;
+      globalDb = db;
       lastCacheTime = now;
       
       // 备份到 localStorage
@@ -1275,9 +1298,13 @@
       console.error('从 Supabase 读取失败，回退到本地:', e);
       try {
         const raw = localStorage.getItem('my_collection_data');
-        if (raw) return JSON.parse(raw);
+        if (raw) {
+          globalDb = JSON.parse(raw);
+          return globalDb;
+        }
       } catch {}
-      return { users: {}, userData: {} };
+      globalDb = { users: {}, userData: {} };
+      return globalDb;
     }
   }
 
@@ -1287,6 +1314,7 @@
     
     // 更新缓存
     cachedDb = db;
+    globalDb = db;
     lastCacheTime = Date.now();
     
     // 备份到 localStorage
@@ -1450,7 +1478,7 @@
   }
 
   function getUserList() {
-    const db = getDb();
+    const db = getDbSync();
     return Object.entries(db.users).map(([u, info]) => ({
       username: u,
       role: info.role,
@@ -1460,7 +1488,7 @@
   }
 
   function saveUserData() {
-    const db = getDb();
+    const db = getDbSync();
     if (state.currentUser) {
       const user = db.users[state.currentUser];
       if (user && user.role === 'admin') {
@@ -1475,7 +1503,7 @@
   }
 
   function isAdmin() {
-    const db = getDb();
+    const db = getDbSync();
     return state.currentUser && db.users[state.currentUser] && db.users[state.currentUser].role === 'admin';
   }
 
@@ -2518,7 +2546,7 @@
     const newPwd = document.getElementById('changePwdNew').value;
     const confirmPwd = document.getElementById('changePwdConfirm').value;
     const errorEl = document.getElementById('changePwdError');
-    const db = getDb();
+    const db = getDbSync();
 
     if (!oldPwd) { errorEl.textContent = '请输入当前密码'; errorEl.style.display = ''; return; }
     if (!newPwd) { errorEl.textContent = '请输入新密码'; errorEl.style.display = ''; return; }
@@ -2576,8 +2604,8 @@
     showPasswordModal();
   }
 
-  function showPasswordModal() {
-    const db = getDb();
+ async function showPasswordModal() {
+    const db = await getDb();
     const hasUsers = Object.keys(db.users).length > 0;
 
     if (!hasUsers) {
@@ -2606,7 +2634,7 @@
     const username = document.getElementById('usernameInput').value.trim();
     const password = document.getElementById('passwordInput').value;
     const errorEl = document.getElementById('passwordError');
-    const db = getDb();
+    const db = await getDb();
     const hasUsers = Object.keys(db.users).length > 0;
 
     if (!username || !password) {
@@ -2702,7 +2730,7 @@
       localStorage.setItem('currentUser', state.currentUser);
     } catch {}
     
-    const db = getDb();
+    const db = getDbSync();
     const isAdminUser = isAdmin();
     const isMockUser = db.users[state.currentUser]?.isMock;
     
@@ -2802,7 +2830,7 @@
     const question = document.getElementById('regQuestionSelect').value;
     const answer = document.getElementById('regAnswerInput').value.trim().toLowerCase();
     const errorEl = document.getElementById('registerError');
-    const db = getDb();
+    const db = getDbSync();
 
     if (!username) { errorEl.textContent = '请输入账号'; errorEl.style.display = ''; return; }
     if (!password) { errorEl.textContent = '请输入密码'; errorEl.style.display = ''; return; }
@@ -2899,7 +2927,7 @@
   }
 
   function changeUserRole(username, role) {
-    const db = getDb();
+    const db = getDbSync();
     if (db.users[username]) {
       db.users[username].role = role;
       saveDb(db);
@@ -2915,7 +2943,7 @@
 
   function deleteUser(username) {
     if (!confirm(`确定要删除用户「${username}」吗？此操作不可恢复。`)) return;
-    const db = getDb();
+    const db = getDbSync();
     delete db.users[username];
     saveDb(db);
     renderUserList();
@@ -2926,7 +2954,7 @@
     const input = document.getElementById('mockUsernameInput');
     const username = input.value.trim();
     if (!username) { showToast('请输入账号名'); return; }
-    const db = getDb();
+    const db = getDbSync();
     if (db.users[username]) { showToast('账号已存在'); return; }
     const pwdHash = await hashPassword('123456');
     const answerHash = await hashText('测试');
@@ -2946,7 +2974,7 @@
 
   async function addBatchMockAccounts() {
     const names = ['张三', '李四', '王五', '赵六', '测试员A', '测试员B'];
-    const db = getDb();
+    const db = getDbSync();
     let added = 0;
     const pwdHash = await hashPassword('123456');
     const answerHash = await hashText('测试');
@@ -2987,7 +3015,7 @@
 
   function showResetQuestion() {
     const username = document.getElementById('resetUsernameInput').value.trim();
-    const db = getDb();
+    const db = getDbSync();
     const resetError = document.getElementById('resetError');
 
     if (!username) {
@@ -3016,7 +3044,7 @@
     const username = document.getElementById('resetUsernameInput').value.trim();
     const answer = document.getElementById('resetAnswerInput').value.trim().toLowerCase();
     const newPwd = document.getElementById('resetNewPwdInput').value;
-    const db = getDb();
+    const db = getDbSync();
     const resetError = document.getElementById('resetError');
 
     if (!answer) {
@@ -3123,10 +3151,10 @@
   document.getElementById('loginSidebarBtn').style.display = '';
   
   // 检查是否有保存的登录状态，有则自动登录
-  (function tryAutoLogin() {
+  (async function tryAutoLogin() {
     try {
       const savedUser = localStorage.getItem('currentUser');
-      const db = getDb();
+      const db = await getDb();
       if (savedUser && db.users[savedUser]) {
         state.currentUser = savedUser;
         loadUserData(savedUser);
