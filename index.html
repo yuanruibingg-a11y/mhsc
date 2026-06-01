@@ -1336,39 +1336,59 @@
     try {
       console.log('☁️ 正在保存到云端...');
       
-      // 保存用户
-      const userPromises = [];
+      // 保存用户 - 逐个保存并处理错误
       for (const username in db.users) {
-        const user = db.users[username];
-        const userData = {
-          username: username,
-          password_hash: user.password_hash || user.password,
-          password_salt: user.password_salt || '',
-          role: user.role,
-          security_question: user.securityQ,
-          security_answer_hash: user.securityAHash,
-          is_mock: user.isMock || false
-        };
-        
-        userPromises.push(
-          sbClient.from('users').upsert(userData)
-        );
+        try {
+          const user = db.users[username];
+          const userData = {
+            username: username,
+            password_hash: user.password_hash || user.password,
+            password_salt: user.password_salt || '',
+            role: user.role,
+            security_question: user.securityQ,
+            security_answer_hash: user.securityAHash,
+            is_mock: user.isMock || false
+          };
+          
+          console.log('📤 保存用户:', username, userData);
+          
+          const { error } = await sbClient
+            .from('users')
+            .upsert(userData, { onConflict: 'username' });
+            
+          if (error) {
+            console.error('❌ 保存用户失败:', username, error);
+          } else {
+            console.log('✅ 用户保存成功:', username);
+          }
+        } catch (err) {
+          console.error('❌ 保存用户异常:', username, err);
+        }
       }
       
       // 保存用户数据
-      const dataPromises = [];
       for (const username in db.userData) {
-        dataPromises.push(
-          sbClient.from('user_data').upsert({
-            username: username,
-            data: db.userData[username],
-            updated_at: new Date().toISOString()
-          })
-        );
+        try {
+          console.log('📤 保存用户数据:', username);
+          
+          const { error } = await sbClient
+            .from('user_data')
+            .upsert({
+              username: username,
+              data: db.userData[username],
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'username' });
+            
+          if (error) {
+            console.error('❌ 保存用户数据失败:', username, error);
+          } else {
+            console.log('✅ 用户数据保存成功:', username);
+          }
+        } catch (err) {
+          console.error('❌ 保存用户数据异常:', username, err);
+        }
       }
       
-      // 等待所有保存操作完成
-      await Promise.all([...userPromises, ...dataPromises]);
       console.log('✅ 数据已保存到云端');
       
     } catch (e) {
