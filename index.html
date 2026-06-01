@@ -862,11 +862,8 @@
       <input type="file" id="importCsvFile" accept=".csv" style="display:none" onchange="importBookmarksCsv(event)">
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
-      <button class="btn btn-sm" onclick="exportAllData()" style="flex:1;font-size:11px;padding:4px">💾 导出全部</button>
-      <button class="btn btn-sm" onclick="document.getElementById('globalImportFile').click()" style="flex:1;font-size:11px;padding:4px">📂 导入全部</button>
-      <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px;margin-top:4px">⌨ 快捷键</button>
+      <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
     </div>
-    <input type="file" id="globalImportFile" accept=".json" style="display:none" onchange="importAllData(event)">
   </aside>
 
   <main class="main">
