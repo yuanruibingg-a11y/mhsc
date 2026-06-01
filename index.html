@@ -6,6 +6,7 @@
 <title>我的收藏架</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg-primary: #1a1816;
@@ -1161,6 +1162,16 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  // Supabase 配置
+  const SUPABASE_URL = 'https://rgzgbtmfouxxhclrtyxu.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_ygOzlcXJDNWu6p2tei27dw_3hXySaV1';
+  let supabase = null;
+  
+  // 本地缓存
+  let cachedDb = null;
+  let lastCacheTime = 0;
+  const CACHE_TTL = 2000;
+  
   let state = {
     groups: [],
     categories: [],
@@ -1172,6 +1183,13 @@
     starred: []
   };
   let confirmCallback = null;
+
+  // 初始化 Supabase
+  function initSupabase() {
+    if (window.supabase && !supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  }
 
   // 安全加密函数（SHA-256 + Salt）
   async function hashText(text) {
@@ -1203,32 +1221,121 @@
     return computedHash === hash;
   }
 
-  function getDb() {
-    try {
-      const raw = localStorage.getItem('my_collection_data');
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (!data.users || !data.userData) {
-          const oldCats = data.categories || [];
-          const oldBms = data.bookmarks || [];
-          return {
-            users: {},
-            userData: {}
-          };
-        }
-        return data;
-      }
+  // 从 Supabase 读取数据
+  async function getDb() {
+    initSupabase();
+    
+    // 检查缓存
+    const now = Date.now();
+    if (cachedDb && now - lastCacheTime < CACHE_TTL) {
+      return cachedDb;
+    }
+    
+    if (!supabase) {
+      // 回退到 localStorage
+      try {
+        const raw = localStorage.getItem('my_collection_data');
+        if (raw) return JSON.parse(raw);
+      } catch {}
       return { users: {}, userData: {} };
-    } catch { return { users: {}, userData: {} }; }
+    }
+    
+    try {
+      // 从 Supabase 读取
+      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
+      const { data: userDataList, error: dataError } = await supabase.from('user_data').select('*');
+      
+      if (usersError || dataError) throw usersError || dataError;
+      
+      // 整理数据格式
+      const db = { users: {}, userData: {} };
+      usersData.forEach(u => {
+        db.users[u.username] = {
+          password: u.password_hash,
+          password_hash: u.password_hash,
+          password_salt: u.password_salt,
+          role: u.role,
+          securityQ: u.security_question,
+          securityAHash: u.security_answer_hash,
+          isMock: u.is_mock
+        };
+      });
+      userDataList.forEach(d => {
+        db.userData[d.username] = d.data;
+      });
+      
+      cachedDb = db;
+      lastCacheTime = now;
+      
+      // 备份到 localStorage
+      localStorage.setItem('my_collection_data', JSON.stringify(db));
+      
+      return db;
+    } catch (e) {
+      console.error('从 Supabase 读取失败，回退到本地:', e);
+      try {
+        const raw = localStorage.getItem('my_collection_data');
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return { users: {}, userData: {} };
+    }
   }
 
-  function saveDb(db) {
+  // 保存数据到 Supabase
+  async function saveDb(db) {
+    initSupabase();
+    
+    // 更新缓存
+    cachedDb = db;
+    lastCacheTime = Date.now();
+    
+    // 备份到 localStorage
     localStorage.setItem('my_collection_data', JSON.stringify(db));
+    
+    if (!supabase) {
+      return; // 离线模式，只保存到本地
+    }
+    
+    try {
+      // 保存用户
+      for (const username in db.users) {
+        const user = db.users[username];
+        const userData = {
+          username: username,
+          password_hash: user.password_hash || user.password,
+          password_salt: user.password_salt || '',
+          role: user.role,
+          security_question: user.securityQ,
+          security_answer_hash: user.securityAHash,
+          is_mock: user.isMock || false
+        };
+        
+        const { error } = await supabase
+          .from('users')
+          .upsert(userData);
+        if (error) throw error;
+      }
+      
+      // 保存用户数据
+      for (const username in db.userData) {
+        const { error } = await supabase
+          .from('user_data')
+          .upsert({
+            username: username,
+            data: db.userData[username],
+            updated_at: new Date().toISOString()
+          });
+        if (error) throw error;
+      }
+    } catch (e) {
+      console.error('保存到 Supabase 失败:', e);
+      // 数据已经备份到 localStorage，不影响使用
+    }
   }
   
   // 导出数据
-  function exportAllData() {
-    const db = getDb();
+  async function exportAllData() {
+    const db = await getDb();
     const dataStr = JSON.stringify(db, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1241,17 +1348,17 @@
   }
   
   // 导入数据
-  function importAllData(event) {
+  async function importAllData(event) {
     const file = event.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
       try {
         const data = JSON.parse(e.target.result);
         if (data.users && data.userData) {
           if (confirm('确定要导入数据吗？这会覆盖当前数据！')) {
-            saveDb(data);
+            await saveDb(data);
             // 重新加载
             state.currentUser = null;
             state.groups = [];
@@ -1274,8 +1381,8 @@
     event.target.value = '';
   }
 
-  function loadUserData(username) {
-    const db = getDb();
+  async function loadUserData(username) {
+    const db = await getDb();
     const user = db.users[username];
     if (!user) return;
     state.currentUser = username;
