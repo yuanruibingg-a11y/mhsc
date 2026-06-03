@@ -874,7 +874,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.7.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.7.3</div>
     </div>
   </aside>
 
@@ -3612,7 +3612,11 @@
   // 权限管理相关
   let currentPermMode = 'user'; // 'user' or 'group'
   
-  function openPermMgr(username) {
+  async function openPermMgr(username) {
+    // 强制从云端拉取最新数据，确保多管理员赋权实时同步
+    cachedDb = null;
+    await getDb();
+    
     currentPermMode = 'user';
     switchPermMode('user');
     
