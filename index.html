@@ -3797,10 +3797,11 @@
     });
     
     // admin 保存时，过滤掉自己没有权限的 ID（防篡改）
+    let adminCatSet, adminBmSet;
     if (currentRole === 'admin') {
       const adminPerms = db.userData[rootUser].permissions?.[currentUser] || { categories: [], bookmarks: [] };
-      const adminCatSet = new Set(adminPerms.categories || []);
-      const adminBmSet = new Set(adminPerms.bookmarks || []);
+      adminCatSet = new Set(adminPerms.categories || []);
+      adminBmSet = new Set(adminPerms.bookmarks || []);
       for (let i = checkedCatIds.length - 1; i >= 0; i--) {
         if (!adminCatSet.has(checkedCatIds[i])) checkedCatIds.splice(i, 1);
       }
@@ -3809,10 +3810,49 @@
       }
     }
     
-    // 保存权限到 root 的 permissions
+    // 合并当前权限到已有权限（不覆盖其他人赋予的权限）
+    const existingPerms = db.userData[rootUser].permissions[targetValue] || { categories: [], bookmarks: [] };
+    const existingCatSet = new Set(existingPerms.categories || []);
+    const existingBmSet = new Set(existingPerms.bookmarks || []);
+    // 遍历当前操作者能管理的ID：勾选的加入，未勾选的移除
+    const manageableIds = currentRole === 'admin'
+      ? { cats: adminCatSet, bms: adminBmSet }
+      : { cats: null, bms: null }; // root 能管理所有
+    
+    // 从现有权限中去掉那些操作者有权管理但未勾选的ID
+    if (manageableIds.cats) {
+      for (const id of existingCatSet) {
+        if (manageableIds.cats.has(id) && !checkedCatIds.includes(id)) {
+          existingCatSet.delete(id);
+        }
+      }
+      for (const id of checkedCatIds) {
+        existingCatSet.add(id);
+      }
+    } else {
+      // root：直接替换
+      existingCatSet.clear();
+      checkedCatIds.forEach(id => existingCatSet.add(id));
+    }
+    
+    if (manageableIds.bms) {
+      for (const id of existingBmSet) {
+        if (manageableIds.bms.has(id) && !checkedBmIds.includes(id)) {
+          existingBmSet.delete(id);
+        }
+      }
+      for (const id of checkedBmIds) {
+        existingBmSet.add(id);
+      }
+    } else {
+      existingBmSet.clear();
+      checkedBmIds.forEach(id => existingBmSet.add(id));
+    }
+    
+    // 保存合并后的权限到 root 的 permissions
     db.userData[rootUser].permissions[targetValue] = {
-      categories: checkedCatIds,
-      bookmarks: checkedBmIds
+      categories: Array.from(existingCatSet),
+      bookmarks: Array.from(existingBmSet)
     };
     
     // 清除缓存并保存到云端
