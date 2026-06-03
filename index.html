@@ -886,7 +886,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.8.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.9.0</div>
     </div>
   </aside>
 
@@ -1571,10 +1571,22 @@
       }
     });
     const userPerms = perms[username] || {};
-    const userCatIds = userPerms.categories || [];
-    const userBmIds = userPerms.bookmarks || [];
-    const finalCats = new Set([...groupCatIds, ...userCatIds]);
-    const finalBms = new Set([...groupBmIds, ...userBmIds]);
+    let userAllowCatIds, userAllowBmIds, userDenyCatIds, userDenyBmIds;
+    if (userPerms.allow || userPerms.deny) {
+      userAllowCatIds = userPerms.allow?.categories || [];
+      userAllowBmIds = userPerms.allow?.bookmarks || [];
+      userDenyCatIds = userPerms.deny?.categories || [];
+      userDenyBmIds = userPerms.deny?.bookmarks || [];
+    } else {
+      userAllowCatIds = userPerms.categories || [];
+      userAllowBmIds = userPerms.bookmarks || [];
+      userDenyCatIds = [];
+      userDenyBmIds = [];
+    }
+    const finalCats = new Set([...groupCatIds, ...userAllowCatIds]);
+    const finalBms = new Set([...groupBmIds, ...userAllowBmIds]);
+    userDenyCatIds.forEach(id => finalCats.delete(id));
+    userDenyBmIds.forEach(id => finalBms.delete(id));
     return {
       categories: (rootData.categories || []).filter(c => finalCats.has(c.id)),
       bookmarks: (rootData.bookmarks || []).filter(b => finalBms.has(b.id))
@@ -1688,32 +1700,11 @@
   }
 
   function isVisibleToUser(item, username) {
-    // 新架构：从 root 的 permissions 检查
-    const db = getDbSync();
-    const allUsers = Object.keys(db.users);
-    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
-    if (!rootUser) {
-      // 没有 root 账号，用旧逻辑兼容
-      if (item.visibleTo === undefined) return true;
-      if (Array.isArray(item.visibleTo) && item.visibleTo.length === 0) return false;
-      if (item.visibleTo.includes(username)) return true;
-      const userGroups = db.users[username]?.groups || [];
-      const visibleGroups = item.visibleTo.filter(v => v.startsWith('group:'));
-      return visibleGroups.some(vg => userGroups.includes(vg.replace('group:', '')));
-    }
-    
-    const rootData = db.userData[rootUser];
-    if (!rootData || !rootData.permissions || !rootData.permissions[username]) return false;
-    
-    const perms = rootData.permissions[username];
-    const catIds = perms.categories || [];
-    const bmIds = perms.bookmarks || [];
-    
-    // 检查 item 是否在权限列表中
+    const fp = getUserFinalPermissions(username);
     if (item.groupId !== undefined) {
-      return catIds.includes(item.id);
+      return fp.categories.some(c => c.id === item.id);
     }
-    return bmIds.includes(item.id);
+    return fp.bookmarks.some(b => b.id === item.id);
   }
 
   function getUserList() {
@@ -3646,16 +3637,19 @@
     const currentRole = state.currentUser && db.users[state.currentUser]?.role;
     const rootData = db.userData[rootUser] || {};
     const perms = rootData.permissions?.[targetId] || { categories: [], bookmarks: [] };
+    const isGroupMode = targetId.startsWith('group:');
+    const groupId = isGroupMode ? targetId.replace('group:', '') : null;
     
-    // admin 打开时，只显示 admin 自己有的权限选项
     let allowedCats, allowedBms;
     if (currentRole === 'root') {
       allowedCats = rootData.categories || [];
       allowedBms = rootData.bookmarks || [];
     } else if (currentRole === 'admin') {
-      const adminPerms = rootData.permissions?.[state.currentUser] || { categories: [], bookmarks: [] };
-      allowedCats = (rootData.categories || []).filter(c => adminPerms.categories.includes(c.id));
-      allowedBms = (rootData.bookmarks || []).filter(b => adminPerms.bookmarks.includes(b.id));
+      const adminPerms = rootData.permissions?.[state.currentUser] || {};
+      const adminCatIds = adminPerms.allow?.categories || adminPerms.categories || [];
+      const adminBmIds = adminPerms.allow?.bookmarks || adminPerms.bookmarks || [];
+      allowedCats = (rootData.categories || []).filter(c => adminCatIds.includes(c.id));
+      allowedBms = (rootData.bookmarks || []).filter(b => adminBmIds.includes(b.id));
     } else {
       allowedCats = [];
       allowedBms = [];
@@ -3663,31 +3657,72 @@
     
     let html = '';
     
-    // 显示分类
+    function getPermState(itemId, itemType) {
+      const userPerms = perms;
+      if (isGroupMode) {
+        const catList = userPerms.categories || [];
+        const bmList = userPerms.bookmarks || [];
+        return itemType === 'category' ? (catList.includes(itemId) ? 'allow' : 'default') : (bmList.includes(itemId) ? 'allow' : 'default');
+      }
+      if (userPerms.allow || userPerms.deny) {
+        const al = userPerms.allow || {};
+        const dl = userPerms.deny || {};
+        const allowList = itemType === 'category' ? (al.categories || []) : (al.bookmarks || []);
+        const denyList = itemType === 'category' ? (dl.categories || []) : (dl.bookmarks || []);
+        if (denyList.includes(itemId)) return 'deny';
+        if (allowList.includes(itemId)) return 'allow';
+      } else {
+        const catList = userPerms.categories || [];
+        const bmList = userPerms.bookmarks || [];
+        return itemType === 'category' ? (catList.includes(itemId) ? 'allow' : 'default') : (bmList.includes(itemId) ? 'allow' : 'default');
+      }
+      const userGroups = db.users[targetId]?.groups || [];
+      for (const gid of userGroups) {
+        const gp = rootData.permissions?.['group:' + gid];
+        if (gp) {
+          const gList = itemType === 'category' ? (gp.categories || []) : (gp.bookmarks || []);
+          if (gList.includes(itemId)) return 'inherit';
+        }
+      }
+      return 'default';
+    }
+    
+    function renderItem(item, itemType, icon, label) {
+      const state = getPermState(item.id, itemType);
+      let stateLabel = '';
+      let stateColor = '';
+      if (state === 'inherit') { stateLabel = '继承'; stateColor = '#4caf50'; }
+      else if (state === 'allow') { stateLabel = '额外添加'; stateColor = '#81c784'; }
+      else if (state === 'deny') { stateLabel = '已禁止'; stateColor = '#e06060'; }
+      else { stateLabel = '未继承'; stateColor = 'var(--text-muted)'; }
+      
+      let actionHtml = '';
+      if (isGroupMode) {
+        const checked = state === 'allow';
+        actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
+      } else {
+        actionHtml = `<span style="font-size:11px;color:${stateColor};min-width:50px">${stateLabel}</span>`;
+        actionHtml += `<button class="nav-btn" data-action="allow" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'allow' ? 'var(--accent)' : 'var(--text-muted)'};font-weight:${state === 'allow' ? '600' : 'normal'}">✓ 允许</button>`;
+        actionHtml += `<button class="nav-btn" data-action="deny" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'deny' ? 'var(--danger)' : 'var(--text-muted)'};font-weight:${state === 'deny' ? '600' : 'normal'}">✕ 禁止</button>`;
+      }
+      
+      return `<div class="perm-item" data-type="${itemType}" data-id="${item.id}" data-state="${state}" style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:6px">
+        ${actionHtml}
+        <span style="flex:1;font-size:13px;color:var(--text-primary)">${icon} ${label}</span>
+      </div>`;
+    }
+    
     if (allowedCats.length > 0) {
       html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500">📁 分类</div>';
       allowedCats.forEach(cat => {
-        const isChecked = (perms.categories || []).includes(cat.id);
-        html += `
-          <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
-            <input type="checkbox" class="perm-checkbox" data-type="category" data-id="${cat.id}" ${isChecked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">
-            <span style="font-size:13px;color:var(--text-primary)">📁 ${cat.name}</span>
-          </div>
-        `;
+        html += renderItem(cat, 'category', '📁', cat.name);
       });
     }
     
-    // 显示收藏
     if (allowedBms.length > 0) {
       html += '<div style="font-size:12px;color:var(--text-muted);margin:12px 0 8px;font-weight:500">🔗 收藏</div>';
       allowedBms.forEach(bm => {
-        const isChecked = (perms.bookmarks || []).includes(bm.id);
-        html += `
-          <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
-            <input type="checkbox" class="perm-checkbox" data-type="bookmark" data-id="${bm.id}" ${isChecked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">
-            <span style="font-size:13px;color:var(--text-primary)">🔗 ${bm.name}</span>
-          </div>
-        `;
+        html += renderItem(bm, 'bookmark', '🔗', bm.name);
       });
     }
     
@@ -3698,12 +3733,91 @@
     listArea.innerHTML = html;
   }
 
+  function togglePermState(btn, itemType, itemId) {
+    const action = btn.dataset.action;
+    const parent = btn.closest('.perm-item');
+    const currentState = parent.dataset.state;
+    let newState;
+    if (action === 'allow') {
+      newState = currentState === 'allow' ? 'default' : 'allow';
+    } else {
+      newState = currentState === 'deny' ? 'default' : 'deny';
+    }
+    if (newState === 'allow' && currentState === 'deny') {
+      const denyBtn = parent.querySelector('[data-action="deny"]');
+      if (denyBtn) denyBtn.style.color = 'var(--text-muted)';
+      if (denyBtn) denyBtn.style.fontWeight = 'normal';
+    }
+    if (newState === 'deny' && currentState === 'allow') {
+      const allowBtn = parent.querySelector('[data-action="allow"]');
+      if (allowBtn) allowBtn.style.color = 'var(--text-muted)';
+      if (allowBtn) allowBtn.style.fontWeight = 'normal';
+    }
+    parent.dataset.state = newState;
+    if (newState === 'allow') {
+      btn.style.color = 'var(--accent)';
+      btn.style.fontWeight = '600';
+      const denyBtn = parent.querySelector('[data-action="deny"]');
+      if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
+    } else if (newState === 'deny') {
+      btn.style.color = 'var(--danger)';
+      btn.style.fontWeight = '600';
+      const allowBtn = parent.querySelector('[data-action="allow"]');
+      if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
+    } else {
+      btn.style.color = 'var(--text-muted)';
+      btn.style.fontWeight = 'normal';
+    }
+    const stateLabel = parent.querySelector('span:first-child');
+    if (stateLabel && stateLabel.textContent.match(/继承|额外添加|已禁止|未继承/)) {
+      if (newState === 'allow') { stateLabel.textContent = '额外添加'; stateLabel.style.color = '#81c784'; }
+      else if (newState === 'deny') { stateLabel.textContent = '已禁止'; stateLabel.style.color = '#e06060'; }
+      else {
+        const db = getDbSync();
+        const targetId = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : document.getElementById('permAccountSelect').value;
+        const userGroups = db.users[targetId]?.groups || [];
+        const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+        const rootData = rootUser ? db.userData[rootUser] : {};
+        let inherited = false;
+        for (const gid of userGroups) {
+          const gp = rootData.permissions?.['group:' + gid];
+          if (gp) {
+            const gList = itemType === 'category' ? (gp.categories || []) : (gp.bookmarks || []);
+            if (gList.includes(itemId)) { inherited = true; break; }
+          }
+        }
+        stateLabel.textContent = inherited ? '继承' : '未继承';
+        stateLabel.style.color = inherited ? '#4caf50' : 'var(--text-muted)';
+      }
+    }
+  }
+
   function selectAllPerms() {
-    document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = true);
+    if (currentPermMode === 'group') {
+      document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = true);
+    } else {
+      document.querySelectorAll('.perm-item[data-state="default"], .perm-item[data-state="inherit"]').forEach(item => {
+        togglePermState(item.querySelector('[data-action="allow"]'), item.dataset.type, item.dataset.id);
+      });
+      document.querySelectorAll('.perm-item[data-state="deny"]').forEach(item => {
+        togglePermState(item.querySelector('[data-action="deny"]'), item.dataset.type, item.dataset.id);
+      });
+    }
   }
 
   function clearAllPerms() {
-    document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+    if (currentPermMode === 'group') {
+      document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+    } else {
+      document.querySelectorAll('.perm-item[data-state="allow"]').forEach(item => {
+        togglePermState(item.querySelector('[data-action="allow"]'), item.dataset.type, item.dataset.id);
+      });
+      document.querySelectorAll('.perm-item[data-state="inherit"], .perm-item[data-state="default"]').forEach(item => {
+        if (item.dataset.state === 'inherit' || item.dataset.state === 'default') {
+          togglePermState(item.querySelector('[data-action="deny"]'), item.dataset.type, item.dataset.id);
+        }
+      });
+    }
   }
 
   function savePermissions() {
@@ -3725,75 +3839,68 @@
     if (!db.userData[rootUser]) db.userData[rootUser] = { categories: [], bookmarks: [] };
     if (!db.userData[rootUser].permissions) db.userData[rootUser].permissions = {};
     
-    const checkedCatIds = [];
-    const checkedBmIds = [];
-    document.querySelectorAll('.perm-checkbox').forEach(cb => {
-      if (cb.checked) {
-        if (cb.dataset.type === 'category') checkedCatIds.push(cb.dataset.id);
-        else if (cb.dataset.type === 'bookmark') checkedBmIds.push(cb.dataset.id);
-      }
-    });
-    
     let adminCatSet, adminBmSet;
     if (currentRole === 'admin') {
-      const adminPerms = db.userData[rootUser].permissions?.[currentUser] || { categories: [], bookmarks: [] };
-      adminCatSet = new Set(adminPerms.categories || []);
-      adminBmSet = new Set(adminPerms.bookmarks || []);
-      for (let i = checkedCatIds.length - 1; i >= 0; i--) {
-        if (!adminCatSet.has(checkedCatIds[i])) checkedCatIds.splice(i, 1);
-      }
-      for (let i = checkedBmIds.length - 1; i >= 0; i--) {
-        if (!adminBmSet.has(checkedBmIds[i])) checkedBmIds.splice(i, 1);
-      }
+      const adminPerms = db.userData[rootUser].permissions?.[currentUser] || {};
+      const adminCatIds = adminPerms.allow?.categories || adminPerms.categories || [];
+      const adminBmIds = adminPerms.allow?.bookmarks || adminPerms.bookmarks || [];
+      adminCatSet = new Set(adminCatIds);
+      adminBmSet = new Set(adminBmIds);
     }
     
     if (currentPermMode === 'group') {
       if (!selectedPermGroupId) { showToast('请先选择一个分组'); return; }
       const targetKey = 'group:' + selectedPermGroupId;
+      const checkedCatIds = [];
+      const checkedBmIds = [];
+      document.querySelectorAll('.perm-checkbox:checked').forEach(cb => {
+        if (cb.dataset.type === 'category') checkedCatIds.push(cb.dataset.id);
+        else if (cb.dataset.type === 'bookmark') checkedBmIds.push(cb.dataset.id);
+      });
       db.userData[rootUser].permissions[targetKey] = {
         categories: checkedCatIds,
         bookmarks: checkedBmIds
       };
     } else {
       const targetValue = document.getElementById('permAccountSelect').value;
-      const existingPerms = db.userData[rootUser].permissions[targetValue] || { categories: [], bookmarks: [] };
-      const existingCatSet = new Set(existingPerms.categories || []);
-      const existingBmSet = new Set(existingPerms.bookmarks || []);
-      const manageableIds = currentRole === 'admin'
-        ? { cats: adminCatSet, bms: adminBmSet }
-        : { cats: null, bms: null };
-      
-      if (manageableIds.cats) {
-        for (const id of existingCatSet) {
-          if (manageableIds.cats.has(id) && !checkedCatIds.includes(id)) {
-            existingCatSet.delete(id);
-          }
+      const allowCats = [];
+      const allowBms = [];
+      const denyCats = [];
+      const denyBms = [];
+      document.querySelectorAll('.perm-item').forEach(item => {
+        const state = item.dataset.state;
+        const type = item.dataset.type;
+        const id = item.dataset.id;
+        if (state === 'allow') {
+          if (type === 'category') allowCats.push(id);
+          else allowBms.push(id);
+        } else if (state === 'deny') {
+          if (type === 'category') denyCats.push(id);
+          else denyBms.push(id);
         }
-        for (const id of checkedCatIds) {
-          existingCatSet.add(id);
+      });
+      if (currentRole === 'admin') {
+        const adminPerms = db.userData[rootUser].permissions?.[currentUser] || {};
+        const adminCatIds = adminPerms.allow?.categories || adminPerms.categories || [];
+        const adminBmIds = adminPerms.allow?.bookmarks || adminPerms.bookmarks || [];
+        adminCatSet = new Set(adminCatIds);
+        adminBmSet = new Set(adminBmIds);
+        for (let i = allowCats.length - 1; i >= 0; i--) {
+          if (!adminCatSet.has(allowCats[i])) allowCats.splice(i, 1);
         }
-      } else {
-        existingCatSet.clear();
-        checkedCatIds.forEach(id => existingCatSet.add(id));
+        for (let i = allowBms.length - 1; i >= 0; i--) {
+          if (!adminBmSet.has(allowBms[i])) allowBms.splice(i, 1);
+        }
+        for (let i = denyCats.length - 1; i >= 0; i--) {
+          if (!adminCatSet.has(denyCats[i])) denyCats.splice(i, 1);
+        }
+        for (let i = denyBms.length - 1; i >= 0; i--) {
+          if (!adminBmSet.has(denyBms[i])) denyBms.splice(i, 1);
+        }
       }
-      
-      if (manageableIds.bms) {
-        for (const id of existingBmSet) {
-          if (manageableIds.bms.has(id) && !checkedBmIds.includes(id)) {
-            existingBmSet.delete(id);
-          }
-        }
-        for (const id of checkedBmIds) {
-          existingBmSet.add(id);
-        }
-      } else {
-        existingBmSet.clear();
-        checkedBmIds.forEach(id => existingBmSet.add(id));
-      }
-      
       db.userData[rootUser].permissions[targetValue] = {
-        categories: Array.from(existingCatSet),
-        bookmarks: Array.from(existingBmSet)
+        allow: { categories: allowCats, bookmarks: allowBms },
+        deny:  { categories: denyCats,  bookmarks: denyBms  }
       };
     }
     
