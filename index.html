@@ -874,7 +874,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.7.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.7.1</div>
     </div>
   </aside>
 
@@ -3285,6 +3285,8 @@
       return true;
     });
     
+    const currentUserRole = state.currentUser && db.users[state.currentUser]?.role;
+    
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
         <span style="flex:2">账号</span>
@@ -3297,6 +3299,8 @@
       const isAdmin = u.role === 'admin' || u.role === 'root';
       const isRoot = u.role === 'root';
       const isCurrent = state.currentUser === u.username;
+      // 下拉框规则：root行永无；当前admin自己无；其余有
+      const noDropdown = u.role === 'root' || (currentUserRole === 'admin' && isCurrent);
       let userColor = 'var(--text-primary)';
       let fontWeight = 'normal';
       let selectBg = 'var(--bg-card)';
@@ -3317,7 +3321,10 @@
         extraText += '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 6px;border-radius:4px;margin-left:4px">测试</span>';
       }
       let actionText = '';
-      actionText += `<button class="nav-btn" onclick="openPermMgr('${u.username}')" title="权限管理">🔐</button>`;
+      // 🔐 只出现在 user 行
+      if (u.role === 'user') {
+        actionText += `<button class="nav-btn" onclick="openPermMgr('${u.username}')" title="权限管理">🔐</button>`;
+      }
       if (u.username !== state.currentUser) {
         actionText += `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
       }
@@ -3341,8 +3348,8 @@
             </div>
           </span>
           <span style="flex:0.8;text-align:center">
-            ${isRoot 
-              ? '<span style="font-size:12px;color:var(--accent);font-weight:600">超级</span>'
+            ${noDropdown
+              ? `<span style="font-size:12px;color:${isRoot ? 'var(--accent)' : 'var(--text-primary)'};font-weight:600">${isRoot ? '超级' : '管理'}</span>`
               : `<select onchange="changeUserRole('${u.username}',this.value)" style="background:${selectBg};border:1px solid ${selectBorder};border-radius:4px;color:${selectColor};font-size:12px;padding:2px 6px;cursor:pointer">
                 <option value="user" ${u.role === 'user' ? 'selected' : ''}>普通</option>
                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>管理</option>
@@ -3686,17 +3693,32 @@
       return;
     }
     
+    const currentRole = state.currentUser && db.users[state.currentUser]?.role;
     const rootData = db.userData[rootUser] || {};
     const perms = type === 'group'
       ? (rootData.permissions?.[`group:${targetId}`] || { categories: [], bookmarks: [] })
       : (rootData.permissions?.[targetId] || { categories: [], bookmarks: [] });
     
+    // admin 打开时，只显示 admin 自己有的权限选项
+    let allowedCats, allowedBms;
+    if (currentRole === 'root') {
+      allowedCats = rootData.categories || [];
+      allowedBms = rootData.bookmarks || [];
+    } else if (currentRole === 'admin') {
+      const adminPerms = rootData.permissions?.[state.currentUser] || { categories: [], bookmarks: [] };
+      allowedCats = (rootData.categories || []).filter(c => adminPerms.categories.includes(c.id));
+      allowedBms = (rootData.bookmarks || []).filter(b => adminPerms.bookmarks.includes(b.id));
+    } else {
+      allowedCats = [];
+      allowedBms = [];
+    }
+    
     let html = '';
     
     // 显示分类
-    if (rootData.categories && rootData.categories.length > 0) {
+    if (allowedCats.length > 0) {
       html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500">📁 分类</div>';
-      rootData.categories.forEach(cat => {
+      allowedCats.forEach(cat => {
         const isChecked = (perms.categories || []).includes(cat.id);
         html += `
           <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
@@ -3708,9 +3730,9 @@
     }
     
     // 显示收藏
-    if (rootData.bookmarks && rootData.bookmarks.length > 0) {
+    if (allowedBms.length > 0) {
       html += '<div style="font-size:12px;color:var(--text-muted);margin:12px 0 8px;font-weight:500">🔗 收藏</div>';
-      rootData.bookmarks.forEach(bm => {
+      allowedBms.forEach(bm => {
         const isChecked = (perms.bookmarks || []).includes(bm.id);
         html += `
           <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
@@ -3721,10 +3743,8 @@
       });
     }
     
-    if (!rootData.categories || rootData.categories.length === 0) {
-      if (!rootData.bookmarks || rootData.bookmarks.length === 0) {
-        html = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">暂无内容可管理</div>';
-      }
+    if (allowedCats.length === 0 && allowedBms.length === 0) {
+      html = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">暂无内容可管理</div>';
     }
     
     listArea.innerHTML = html;
@@ -3775,6 +3795,19 @@
         else if (cb.dataset.type === 'bookmark') checkedBmIds.push(cb.dataset.id);
       }
     });
+    
+    // admin 保存时，过滤掉自己没有权限的 ID（防篡改）
+    if (currentRole === 'admin') {
+      const adminPerms = db.userData[rootUser].permissions?.[currentUser] || { categories: [], bookmarks: [] };
+      const adminCatSet = new Set(adminPerms.categories || []);
+      const adminBmSet = new Set(adminPerms.bookmarks || []);
+      for (let i = checkedCatIds.length - 1; i >= 0; i--) {
+        if (!adminCatSet.has(checkedCatIds[i])) checkedCatIds.splice(i, 1);
+      }
+      for (let i = checkedBmIds.length - 1; i >= 0; i--) {
+        if (!adminBmSet.has(checkedBmIds[i])) checkedBmIds.splice(i, 1);
+      }
+    }
     
     // 保存权限到 root 的 permissions
     db.userData[rootUser].permissions[targetValue] = {
