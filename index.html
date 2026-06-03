@@ -767,26 +767,34 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    margin-top: 4px;
+    margin-top: 6px;
+    margin-left: -56px;
+    max-height: 48px;
+    overflow: hidden;
   }
   .bm-view-tag {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    justify-content: center;
     padding: 2px 8px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text-secondary);
-    font-size: 11px;
+    background: linear-gradient(135deg, rgba(212, 168, 83, 0.15), rgba(212, 168, 83, 0.05));
+    border: none;
+    border-radius: 100px;
+    color: var(--accent);
+    font-size: 9px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
     text-decoration: none;
+    white-space: nowrap;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .bm-view-tag:hover {
-    background: rgba(74, 222, 128, 0.1);
-    border-color: rgba(74, 222, 128, 0.3);
-    color: #4ade80;
+    background: linear-gradient(135deg, rgba(212, 168, 83, 0.25), rgba(212, 168, 83, 0.1));
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(212, 168, 83, 0.15);
   }
 
   .editing-only { display: none !important; }
@@ -866,6 +874,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.6.7</div>
     </div>
   </aside>
 
@@ -899,6 +908,11 @@
     <div class="form-group">
       <label>链接地址</label>
       <input type="url" id="bookmarkUrl" placeholder="例如：https://github.com">
+    </div>
+    <div class="form-group">
+      <label>自定义图标（选填，图片链接）</label>
+      <input type="url" id="bookmarkCustomIcon" placeholder="例如：https://example.com/icon.png">
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">留空则自动获取网站图标</div>
     </div>
     <div class="views-section">
       <div class="views-section-header">
@@ -1114,9 +1128,32 @@
 </div>
 
 <div class="modal-overlay" id="userMgrModal">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" style="max-width:550px">
     <div class="modal-title">用户管理</div>
-    <div id="userListArea" style="margin-bottom:16px;max-height:300px;overflow-y:auto"></div>
+    
+    <!-- 账号分组管理 -->
+    <div style="margin-bottom:16px;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600">📋 账号分组</span>
+        <button class="btn btn-sm btn-primary" onclick="openAddGroupModal()">+ 添加分组</button>
+      </div>
+      <div id="accountGroupsList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    
+    <!-- 搜索和筛选 -->
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+      <div style="flex:1;display:flex;align-items:center;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px">
+        <span style="color:var(--text-muted);font-size:12px;margin-right:6px">🔍</span>
+        <input type="text" id="userSearchInput" placeholder="搜索账号..." style="flex:1;background:none;border:none;color:var(--text-primary);font-size:12px;outline:none" oninput="renderUserList()">
+      </div>
+    </div>
+    
+    <!-- 分组筛选标签 -->
+    <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:4px" id="userGroupFilter">
+      <span style="font-size:12px;color:var(--text-muted);margin-right:4px">筛选：</span>
+    </div>
+    
+    <div id="userListArea" style="margin-bottom:16px;max-height:280px;overflow-y:auto"></div>
     <div class="form-group" style="margin-bottom:10px">
       <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">添加模拟测试账号</label>
       <div style="display:flex;gap:8px">
@@ -1128,6 +1165,76 @@
     <div class="form-actions" style="justify-content:space-between">
       <button class="btn btn-sm" onclick="openChangePasswordModal()">🔑 修改密码</button>
       <button class="btn btn-cancel" onclick="closeModal('userMgrModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 用户分组编辑弹窗 -->
+<div class="modal-overlay" id="userGroupEditModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">编辑用户分组</div>
+    <input type="hidden" id="editUserGroupUsername">
+    <div class="form-group" style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:6px;display:block">用户账号</label>
+      <div id="editUserGroupUsernameDisplay" style="font-size:14px;color:var(--text-primary);padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+    </div>
+    <div class="form-group">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:6px;display:block">选择所属分组</label>
+      <div id="userGroupEditList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveUserGroupEdit()">保存</button>
+      <button class="btn btn-cancel" onclick="closeModal('userGroupEditModal')">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 添加/编辑分组弹窗 -->
+<div class="modal-overlay" id="addGroupModal">
+  <div class="modal" style="max-width:350px">
+    <div class="modal-title" id="addGroupModalTitle">添加分组</div>
+    <input type="hidden" id="editGroupId">
+    <div class="form-group">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:6px;display:block">分组名称</label>
+      <input type="text" id="groupNameInput" placeholder="例如：售后组" style="width:100%;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveAccountGroup()">保存</button>
+      <button class="btn btn-cancel" onclick="closeModal('addGroupModal')">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="permissionMgrModal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-title">权限管理</div>
+    
+    <!-- 模式切换 -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-sm" id="permModeUserBtn" onclick="switchPermMode('user')" style="flex:1">👤 按账号管理</button>
+      <button class="btn btn-sm" id="permModeGroupBtn" onclick="switchPermMode('group')" style="flex:1">📋 按分组管理</button>
+    </div>
+    
+    <!-- 账号选择 -->
+    <div class="form-group" style="margin-bottom:12px" id="permAccountSection">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:6px;display:block">选择账号</label>
+      <select id="permAccountSelect" onchange="loadAccountChanged()" style="width:100%;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;cursor:pointer" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''"></select>
+    </div>
+    
+    <!-- 分组选择 -->
+    <div class="form-group" style="margin-bottom:12px;display:none" id="permGroupSection">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:6px;display:block">选择分组</label>
+      <select id="permGroupSelect" onchange="loadGroupChanged()" style="width:100%;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;cursor:pointer" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''"></select>
+    </div>
+    
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-primary btn-sm" onclick="selectAllPerms()">✅ 全选</button>
+      <button class="btn btn-sm" onclick="clearAllPerms()">❌ 清空</button>
+    </div>
+    <div id="permContentList" style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;background:var(--bg-card)"></div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="savePermissions()">保存权限</button>
+      <button class="btn btn-cancel" onclick="closeModal('permissionMgrModal')">取消</button>
     </div>
   </div>
 </div>
@@ -1287,7 +1394,8 @@
           role: u.role,
           securityQ: u.security_question,
           securityAHash: u.security_answer_hash || u.security_answer,
-          isMock: u.is_mock
+          isMock: u.is_mock,
+          groups: u.groups || []
         };
       });
       userDataList.forEach(d => {
@@ -1351,7 +1459,8 @@
             security_question: user.securityQ,
             security_answer: user.securityAHash,
             security_answer_hash: user.securityAHash,
-            is_mock: user.isMock || false
+            is_mock: user.isMock || false,
+            groups: user.groups || []
           };
           
           console.log('📤 保存用户:', username, userData);
@@ -1370,8 +1479,9 @@
         }
       }
       
-      // 保存用户数据
-      for (const username in db.userData) {
+      // 保存用户数据（只保存当前登录用户的数据，避免覆盖其他管理员）
+      if (state.currentUser && db.userData[state.currentUser]) {
+        const username = state.currentUser;
         try {
           console.log('📤 保存用户数据:', username);
           
@@ -1462,14 +1572,15 @@
       state.bookmarks = data.bookmarks || [];
     } else {
       const allUsers = Object.keys(db.users);
-      const adminUser = allUsers.find(u => db.users[u].role === 'admin') || username;
-      const adminData = db.userData[adminUser] || { groups: [], categories: [], bookmarks: [] };
-      const allGroups = adminData.groups || [];
-      const allCats = adminData.categories || [];
-      const allBms = adminData.bookmarks || [];
-      state.groups = allGroups;
-      state.categories = allCats.filter(c => isVisibleToUser(c, username));
-      state.bookmarks = allBms.filter(b => isVisibleToUser(b, username));
+      // 用第一个管理员的数据来获取分组列表（分组是全局的）
+      const adminUsers = allUsers.filter(u => db.users[u].role === 'admin');
+      const adminUser = adminUsers[0] || username;
+      const adminData = db.userData[adminUser] || {};
+      state.groups = adminData.groups || [];
+      // 从自己的 user_data 中读取可见内容（不再找管理员过滤）
+      const ownData = db.userData[username] || {};
+      state.categories = ownData.categories || [];
+      state.bookmarks = ownData.bookmarks || [];
     }
     state.bookmarks.forEach((bm, i) => migrateBookmark(bm, i));
 
@@ -1499,6 +1610,34 @@
       state.starred = s;
     } catch { state.starred = []; }
 
+    // 管理员数据为空时，尝试从 localStorage 备份恢复
+    if (user.role === 'admin' && state.categories.length === 0) {
+      try {
+        const raw = localStorage.getItem('my_collection_data');
+        if (raw) {
+          const localDb = JSON.parse(raw);
+          const localData = localDb.userData?.[username];
+          if (localData && localData.categories && localData.categories.length > 0) {
+            state.groups = localData.groups || [];
+            state.categories = localData.categories || [];
+            state.bookmarks = localData.bookmarks || [];
+            // 恢复后立刻同步到云端修复Supabase数据
+            const syncDb = getDbSync();
+            syncDb.userData[username] = {
+              groups: state.groups,
+              categories: state.categories,
+              bookmarks: state.bookmarks
+            };
+            saveDb(syncDb);
+            console.log('✅ 从本地备份恢复管理员数据并同步到云端');
+          }
+        }
+      } catch(e) {
+        console.warn('⚠️ 本地备份恢复失败:', e);
+      }
+    }
+    
+    // 本地备份也没有，创建默认分类
     if (user.role === 'admin' && state.categories.length === 0) {
       const defaultGroup = { id: genId(), name: '默认分组', icon: '📁', sortOrder: 0 };
       state.groups = [defaultGroup];
@@ -1513,8 +1652,24 @@
   }
 
   function isVisibleToUser(item, username) {
-    if (!item.visibleTo || item.visibleTo.length === 0) return true;
-    return item.visibleTo.includes(username);
+    // undefined = 从未设置过权限 → 所有人可见（向后兼容）
+    if (item.visibleTo === undefined) return true;
+    // [] = 显式取消了所有权限 → 没人可见（管理员除外，但管理员不走这个函数）
+    if (Array.isArray(item.visibleTo) && item.visibleTo.length === 0) return false;
+    
+    // 检查用户是否直接在 visibleTo 中
+    if (item.visibleTo.includes(username)) return true;
+    
+    // 检查用户是否属于某个在 visibleTo 中的分组
+    const db = getDbSync();
+    const userGroups = db.users[username]?.groups || [];
+    const visibleGroups = item.visibleTo.filter(v => v.startsWith('group:'));
+    for (const vg of visibleGroups) {
+      const groupId = vg.replace('group:', '');
+      if (userGroups.includes(groupId)) return true;
+    }
+    
+    return false;
   }
 
   function getUserList() {
@@ -1600,13 +1755,25 @@
     `)}`;
   }
 
+  function isPrivateIP(hostname) {
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+    if (/^192\.168\.\d+\.\d+$/.test(hostname)) return true;
+    if (/^10\.\d+\.\d+\.\d+$/.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)) return true;
+    return false;
+  }
+
   function getFavicon(url) {
     try {
       const u = new URL(url);
       const hostname = u.hostname;
+      const protocol = u.protocol;
       
-      // 优先使用 Google 的图标服务
-      return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+      // 内网IP不会有公网可直接访问的 favicon，跳过避免控制台报错
+      if (isPrivateIP(hostname)) return null;
+      
+      // 第1优先：网站本身的 favicon
+      return `${protocol}//${hostname}/favicon.ico`;
     } catch { 
       return null; 
     }
@@ -1935,18 +2102,37 @@
     area.innerHTML = `<div class="bookmarks-grid" id="bookmarksGrid">${
       items.map(bm => {
         const cat = state.categories.find(c => c.id === bm.categoryId);
-        const favicon = getFavicon(bm.url);
+        const favicon = bm.customIcon || getFavicon(bm.url);
+        const faviconSrc = favicon || getDefaultIcon(bm.url, cat ? cat.icon.slice(0,1) : '🔗');
         const isStarred = state.starred.includes(bm.id);
         const viewsHtml = (bm.views && bm.views.length > 0)
-          ? `<div class="bm-views">${bm.views.map(v => `<span class="bm-view-tag" data-view-url="${escapeHtml(v.url)}">👁 ${escapeHtml(v.name)}</span>`).join('')}</div>`
+          ? `<div class="bm-views">${bm.views.slice(0, 6).map(v => `<span class="bm-view-tag" data-view-url="${escapeHtml(v.url)}">${escapeHtml(v.name)}</span>`).join('')}</div>`
           : '';
-        return `
-          <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}">
-            ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
-            <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
-            <div class="bm-icon" id="bm-icon-${bm.id}">
-              <img src="${favicon}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover" 
-                   onerror="
+        const customIconOnerror = bm.customIcon 
+          ? `onerror="
+                     const container = this.parentNode;
+                     const fallbackUrl = '${escapeHtml(getFavicon(bm.url))}';
+                     const img = document.createElement('img');
+                     img.src = fallbackUrl;
+                     img.style.width = '100%';
+                     img.style.height = '100%';
+                     img.style.borderRadius = '8px';
+                     img.style.objectFit = 'cover';
+                     img.onerror = function() {
+                       const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? cat.icon.slice(0,1) : '🔗'}');
+                       const fallbackImg = document.createElement('img');
+                       fallbackImg.src = defaultIcon;
+                       fallbackImg.style.width = '100%';
+                       fallbackImg.style.height = '100%';
+                       fallbackImg.style.borderRadius = '8px';
+                       fallbackImg.style.objectFit = 'cover';
+                       container.innerHTML = '';
+                       container.appendChild(fallbackImg);
+                     };
+                     container.innerHTML = '';
+                     container.appendChild(img);
+                   "`
+          : `onerror="
                      const container = this.parentNode;
                      const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? cat.icon.slice(0,1) : '🔗'}');
                      const img = document.createElement('img');
@@ -1957,7 +2143,14 @@
                      img.style.objectFit = 'cover';
                      container.innerHTML = '';
                      container.appendChild(img);
-                   ">
+                   "`;
+        return `
+          <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}">
+            ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
+            <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
+            <div class="bm-icon" id="bm-icon-${bm.id}">
+              <img src="${faviconSrc}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover" 
+                   ${customIconOnerror}>
             </div>
             <div class="bm-body">
               <div class="bm-name">${escapeHtml(bm.name)}</div>
@@ -2065,6 +2258,7 @@
     const title = document.getElementById('bookmarkModalTitle');
     const nameInput = document.getElementById('bookmarkName');
     const urlInput = document.getElementById('bookmarkUrl');
+    const customIconInput = document.getElementById('bookmarkCustomIcon');
     const catSelect = document.getElementById('bookmarkCategory');
     const editId = document.getElementById('editBookmarkId');
     const container = document.getElementById('viewsContainer');
@@ -2096,6 +2290,7 @@
       title.textContent = '编辑收藏';
       nameInput.value = bm.name;
       urlInput.value = bm.url;
+      customIconInput.value = bm.customIcon || '';
       catSelect.value = bm.categoryId;
       editId.value = id;
       (bm.views || []).forEach(v => addViewRow(v));
@@ -2108,6 +2303,7 @@
       title.textContent = '添加收藏';
       nameInput.value = '';
       urlInput.value = '';
+      customIconInput.value = '';
       editId.value = '';
       if (state.activeCategoryId && state.categories.find(c => c.id === state.activeCategoryId)) {
         catSelect.value = state.activeCategoryId;
@@ -2121,6 +2317,7 @@
   function saveBookmark() {
     const name = document.getElementById('bookmarkName').value.trim();
     const url = document.getElementById('bookmarkUrl').value.trim();
+    const customIcon = document.getElementById('bookmarkCustomIcon').value.trim();
     const categoryId = document.getElementById('bookmarkCategory').value;
     const editId = document.getElementById('editBookmarkId').value;
 
@@ -2140,10 +2337,25 @@
 
     if (editId) {
       const bm = state.bookmarks.find(b => b.id === editId);
-      if (bm) { bm.name = name; bm.url = url; bm.views = views; bm.categoryId = categoryId; }
+      if (bm) { 
+        bm.name = name; 
+        bm.url = url; 
+        bm.views = views; 
+        bm.categoryId = categoryId; 
+        bm.customIcon = customIcon || undefined; 
+      }
     } else {
       const maxOrder = state.bookmarks.reduce((max, b) => Math.max(max, b.sortOrder ?? 0), -1);
-      state.bookmarks.push({ id: genId(), name, url, views, categoryId, sortOrder: maxOrder + 1, createdAt: Date.now() });
+      state.bookmarks.push({ 
+        id: genId(), 
+        name, 
+        url, 
+        customIcon: customIcon || undefined, 
+        views, 
+        categoryId, 
+        sortOrder: maxOrder + 1, 
+        createdAt: Date.now() 
+      });
     }
 
     if (isAdmin()) {
@@ -2964,6 +3176,8 @@
       securityAHash: answerHash 
     };
     if (!db.userData) db.userData = {};
+    // 新用户注册时创建空的 user_data（后续由权限管理填充可见内容）
+    db.userData[username] = { categories: [], bookmarks: [] };
     saveDb(db);
 
     closeModal('registerModal');
@@ -2974,20 +3188,77 @@
     showToast('注册成功，请登录');
   }
 
+  // 当前筛选状态
+  let currentGroupFilter = null;
+  
   function openUserManager() {
+    currentGroupFilter = null;
     renderUserList();
+    renderAccountGroups();
+    renderUserGroupFilter();
     document.getElementById('mockUsernameInput').value = '';
+    document.getElementById('userSearchInput').value = '';
     document.getElementById('userMgrModal').classList.add('show');
+  }
+
+  function renderUserGroupFilter() {
+    const area = document.getElementById('userGroupFilter');
+    const groups = getAccountGroups();
+    let html = '<span style="font-size:12px;color:var(--text-muted);margin-right:4px">筛选：</span>';
+    
+    // 全部按钮
+    html += `<button class="btn btn-sm ${currentGroupFilter === null ? 'btn-primary' : ''}" onclick="setUserGroupFilter(null)" style="padding:4px 10px">全部</button>`;
+    
+    // 无分组按钮
+    html += `<button class="btn btn-sm ${currentGroupFilter === 'none' ? 'btn-primary' : ''}" onclick="setUserGroupFilter('none')" style="padding:4px 10px">无分组</button>`;
+    
+    // 各个分组
+    groups.forEach(g => {
+      html += `<button class="btn btn-sm ${currentGroupFilter === g.id ? 'btn-primary' : ''}" onclick="setUserGroupFilter('${g.id}')" style="padding:4px 10px">${g.name}</button>`;
+    });
+    
+    area.innerHTML = html;
+  }
+
+  function setUserGroupFilter(groupId) {
+    currentGroupFilter = groupId;
+    renderUserGroupFilter();
+    renderUserList();
   }
 
   function renderUserList() {
     const area = document.getElementById('userListArea');
-    const users = getUserList();
+    const allUsers = getUserList();
+    const db = getDbSync();
+    const groups = getAccountGroups();
+    const searchText = document.getElementById('userSearchInput')?.value?.toLowerCase() || '';
+    
+    // 筛选用户
+    let users = allUsers.filter(u => {
+      // 搜索筛选
+      if (searchText && !u.username.toLowerCase().includes(searchText)) {
+        return false;
+      }
+      
+      // 分组筛选
+      if (currentGroupFilter !== null) {
+        const userGroups = db.users[u.username]?.groups || [];
+        if (currentGroupFilter === 'none') {
+          if (userGroups.length > 0) return false;
+        } else {
+          if (!userGroups.includes(currentGroupFilter)) return false;
+        }
+      }
+      
+      return true;
+    });
+    
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
         <span style="flex:2">账号</span>
-        <span style="flex:1;text-align:center">角色</span>
-        <span style="flex:1;text-align:center">操作</span>
+        <span style="flex:1.5;text-align:center">所属分组</span>
+        <span style="flex:0.8;text-align:center">角色</span>
+        <span style="flex:1.2;text-align:center">操作</span>
       </div>
     `;
     users.forEach(u => {
@@ -3013,28 +3284,207 @@
         extraText += '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 6px;border-radius:4px;margin-left:4px">测试</span>';
       }
       let actionText = '';
+      actionText += `<button class="nav-btn" onclick="openPermMgr('${u.username}')" title="权限管理">🔐</button>`;
       if (u.username !== state.currentUser) {
-        actionText = `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
-      } else {
-        actionText = '<span style="color:var(--text-muted);font-size:11px">-</span>';
+        actionText += `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
       }
+      
+      // 获取用户所属分组，显示为标签
+      const userGroups = db.users[u.username]?.groups || [];
+      const userGroupNames = groups.filter(g => userGroups.includes(g.id)).map(g => g.name);
+      
       html += `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px">
           <span style="flex:2;font-weight:${fontWeight};color:${userColor}">
             ${u.username} ${extraText}
           </span>
-          <span style="flex:1;text-align:center">
+          <span style="flex:1.5;text-align:center">
+            <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+              ${userGroupNames.length > 0 
+                ? userGroupNames.map(name => `<span style="font-size:11px;padding:2px 8px;background:var(--accent);color:var(--bg-primary);border-radius:12px">${name}</span>`).join('') 
+                : `<span style="font-size:11px;color:var(--text-muted)">无</span>`
+              }
+              <button onclick="openUserGroupEdit('${u.username}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0 4px" title="编辑分组">✏️</button>
+            </div>
+          </span>
+          <span style="flex:0.8;text-align:center">
             <select onchange="changeUserRole('${u.username}',this.value)" style="background:${selectBg};border:1px solid ${selectBorder};border-radius:4px;color:${selectColor};font-size:12px;padding:2px 6px;cursor:pointer">
               <option value="user" ${u.role === 'user' ? 'selected' : ''}>普通</option>
               <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>管理</option>
             </select>
           </span>
-          <span style="flex:1;text-align:center">${actionText}</span>
+          <span style="flex:1.2;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
         </div>
       `;
     });
-    html += `<div style="color:var(--text-muted);font-size:11px;padding-top:8px">共 ${users.length} 个账号</div>`;
+    
+    if (users.length === 0) {
+      html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">未找到匹配的用户</div>`;
+    } else {
+      html += `<div style="color:var(--text-muted);font-size:11px;padding-top:8px">共 ${users.length} 个账号</div>`;
+    }
+    
     area.innerHTML = html;
+  }
+
+  function openUserGroupEdit(username) {
+    document.getElementById('editUserGroupUsername').value = username;
+    document.getElementById('editUserGroupUsernameDisplay').textContent = username;
+    
+    const db = getDbSync();
+    const groups = getAccountGroups();
+    const userGroups = db.users[username]?.groups || [];
+    
+    const listArea = document.getElementById('userGroupEditList');
+    if (groups.length === 0) {
+      listArea.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:10px">暂无分组，请先添加分组</div>';
+    } else {
+      listArea.innerHTML = groups.map(g => `
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;cursor:pointer">
+          <input type="checkbox" ${userGroups.includes(g.id) ? 'checked' : ''} data-group-id="${g.id}" style="cursor:pointer">
+          <span style="font-size:13px;color:var(--text-primary)">${g.name}</span>
+        </label>
+      `).join('');
+    }
+    
+    document.getElementById('userGroupEditModal').classList.add('show');
+  }
+
+  function saveUserGroupEdit() {
+    const username = document.getElementById('editUserGroupUsername').value;
+    const db = getDbSync();
+    
+    const checkboxes = document.querySelectorAll('#userGroupEditList input[type="checkbox"]');
+    const selectedGroups = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        selectedGroups.push(cb.dataset.groupId);
+      }
+    });
+    
+    if (!db.users[username]) db.users[username] = {};
+    db.users[username].groups = selectedGroups;
+    saveDb(db);
+    
+    closeModal('userGroupEditModal');
+    renderUserList();
+    showToast('分组已更新');
+  }
+  
+  function getAccountGroups() {
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const adminUser = allUsers.find(u => db.users[u].role === 'admin');
+    if (!adminUser) return [];
+    return db.userData[adminUser]?.accountGroups || [];
+  }
+  
+  function renderAccountGroups() {
+    const area = document.getElementById('accountGroupsList');
+    const groups = getAccountGroups();
+    if (groups.length === 0) {
+      area.innerHTML = '<span style="color:var(--text-muted);font-size:12px">暂无分组</span>';
+      return;
+    }
+    area.innerHTML = groups.map(g => `
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;font-size:12px">
+        ${g.name}
+        <button onclick="editAccountGroup('${g.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0 2px" title="编辑">✏️</button>
+        <button onclick="deleteAccountGroup('${g.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:0 2px" title="删除">🗑️</button>
+      </span>
+    `).join('');
+  }
+  
+  function openAddGroupModal() {
+    document.getElementById('addGroupModalTitle').textContent = '添加分组';
+    document.getElementById('editGroupId').value = '';
+    document.getElementById('groupNameInput').value = '';
+    document.getElementById('addGroupModal').classList.add('show');
+    setTimeout(() => document.getElementById('groupNameInput').focus(), 100);
+  }
+  
+  function editAccountGroup(groupId) {
+    const groups = getAccountGroups();
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+    document.getElementById('addGroupModalTitle').textContent = '编辑分组';
+    document.getElementById('editGroupId').value = groupId;
+    document.getElementById('groupNameInput').value = group.name;
+    document.getElementById('addGroupModal').classList.add('show');
+    setTimeout(() => document.getElementById('groupNameInput').focus(), 100);
+  }
+  
+  function saveAccountGroup() {
+    const groupName = document.getElementById('groupNameInput').value.trim();
+    const editId = document.getElementById('editGroupId').value;
+    if (!groupName) { showToast('请输入分组名称'); return; }
+    
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const adminUser = allUsers.find(u => db.users[u].role === 'admin');
+    if (!adminUser) { showToast('找不到管理员数据'); return; }
+    if (!db.userData[adminUser]) db.userData[adminUser] = { categories: [], bookmarks: [] };
+    if (!db.userData[adminUser].accountGroups) db.userData[adminUser].accountGroups = [];
+    
+    if (editId) {
+      // 编辑现有分组
+      const group = db.userData[adminUser].accountGroups.find(g => g.id === editId);
+      if (group) group.name = groupName;
+    } else {
+      // 添加新分组
+      db.userData[adminUser].accountGroups.push({
+        id: genId(),
+        name: groupName
+      });
+    }
+    
+    saveDb(db);
+    closeModal('addGroupModal');
+    renderAccountGroups();
+    renderUserGroupFilter(); // 也更新筛选标签
+    renderUserList();
+    showToast(editId ? '分组已更新' : '分组已添加');
+  }
+  
+  function deleteAccountGroup(groupId) {
+    if (!confirm('确定要删除这个分组吗？该操作不会删除组内用户。')) return;
+    
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const adminUser = allUsers.find(u => db.users[u].role === 'admin');
+    if (!adminUser) { showToast('找不到管理员数据'); return; }
+    
+    if (db.userData[adminUser]?.accountGroups) {
+      db.userData[adminUser].accountGroups = db.userData[adminUser].accountGroups.filter(g => g.id !== groupId);
+    }
+    
+    // 同时移除所有用户的该分组关联
+    allUsers.forEach(u => {
+      if (db.users[u].groups) {
+        db.users[u].groups = db.users[u].groups.filter(g => g !== groupId);
+      }
+    });
+    
+    // 如果删除的是当前筛选的分组，重置筛选
+    if (currentGroupFilter === groupId) {
+      currentGroupFilter = null;
+    }
+    
+    saveDb(db);
+    renderAccountGroups();
+    renderUserGroupFilter(); // 也更新筛选标签
+    renderUserList();
+    showToast('分组已删除');
+  }
+  
+  function updateUserGroups(username, selectEl) {
+    const db = getDbSync();
+    if (!db.users[username]) return;
+    
+    const selectedGroups = Array.from(selectEl.selectedOptions).map(o => o.value);
+    db.users[username].groups = selectedGroups;
+    saveDb(db);
+    showToast('分组已更新');
   }
 
   function changeUserRole(username, role) {
@@ -3099,6 +3549,8 @@
           securityAHash: answerHash, 
           isMock: true 
         };
+        if (!db.userData) db.userData = {};
+        db.userData[name] = { categories: [], bookmarks: [] };
         added++;
       }
     });
@@ -3109,6 +3561,222 @@
     } else {
       showToast('所有测试账号已存在');
     }
+  }
+
+  // 权限管理相关
+  let currentPermMode = 'user'; // 'user' or 'group'
+  
+  function openPermMgr(username) {
+    currentPermMode = 'user';
+    switchPermMode('user');
+    
+    // 直接用当前 state 数据，管理员登录时已有完整数据
+    const select = document.getElementById('permAccountSelect');
+    const users = getUserList();
+    select.innerHTML = users.map(u => `<option value="${u.username}" ${u.username === username ? 'selected' : ''}>${u.username}${u.role === 'admin' ? ' (管理员)' : ''}</option>`).join('');
+    
+    // 填充分组选择
+    const groupSelect = document.getElementById('permGroupSelect');
+    const groups = getAccountGroups();
+    groupSelect.innerHTML = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    
+    loadAccountPermissions(username);
+    
+    closeModal('userMgrModal');
+    document.getElementById('permissionMgrModal').classList.add('show');
+  }
+
+  function switchPermMode(mode) {
+    currentPermMode = mode;
+    const userBtn = document.getElementById('permModeUserBtn');
+    const groupBtn = document.getElementById('permModeGroupBtn');
+    const userSection = document.getElementById('permAccountSection');
+    const groupSection = document.getElementById('permGroupSection');
+    
+    if (mode === 'user') {
+      userBtn.classList.add('btn-primary');
+      groupBtn.classList.remove('btn-primary');
+      userSection.style.display = '';
+      groupSection.style.display = 'none';
+      
+      const username = document.getElementById('permAccountSelect').value;
+      if (username) loadAccountPermissions(username);
+    } else {
+      groupBtn.classList.add('btn-primary');
+      userBtn.classList.remove('btn-primary');
+      groupSection.style.display = '';
+      userSection.style.display = 'none';
+      
+      const groupId = document.getElementById('permGroupSelect').value;
+      if (groupId) loadGroupPermissions(groupId);
+    }
+  }
+
+  function loadAccountChanged() {
+    const username = document.getElementById('permAccountSelect').value;
+    loadAccountPermissions(username);
+  }
+  
+  function loadGroupChanged() {
+    const groupId = document.getElementById('permGroupSelect').value;
+    loadGroupPermissions(groupId);
+  }
+
+  function loadAccountPermissions(username) {
+    renderPermContentList(username, 'user');
+  }
+  
+  function loadGroupPermissions(groupId) {
+    renderPermContentList(groupId, 'group');
+  }
+
+  function renderPermContentList(targetId, type) {
+    const listArea = document.getElementById('permContentList');
+    let html = '';
+    
+    const targetValue = type === 'group' ? `group:${targetId}` : targetId;
+    
+    // 显示分类
+    if (state.categories.length > 0) {
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500">📁 分类</div>';
+      state.categories.forEach(cat => {
+        // undefined = 从未设置（全可见）→ 显示已勾选；[] = 已取消 → 未勾选
+        const isChecked = cat.visibleTo === undefined || cat.visibleTo.includes(targetValue);
+        html += `
+          <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+            <input type="checkbox" class="perm-checkbox" data-type="category" data-id="${cat.id}" ${isChecked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">
+            <span style="font-size:13px;color:var(--text-primary)">📁 ${cat.name}</span>
+          </div>
+        `;
+      });
+    }
+    
+    // 显示收藏
+    if (state.bookmarks.length > 0) {
+      html += '<div style="font-size:12px;color:var(--text-muted);margin:12px 0 8px;font-weight:500">🔗 收藏</div>';
+      state.bookmarks.forEach(bm => {
+        // undefined = 从未设置（全可见）→ 显示已勾选；[] = 已取消 → 未勾选
+        const isChecked = bm.visibleTo === undefined || bm.visibleTo.includes(targetValue);
+        html += `
+          <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+            <input type="checkbox" class="perm-checkbox" data-type="bookmark" data-id="${bm.id}" ${isChecked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">
+            <span style="font-size:13px;color:var(--text-primary)">🔗 ${bm.name}</span>
+          </div>
+        `;
+      });
+    }
+    
+    if (state.categories.length === 0 && state.bookmarks.length === 0) {
+      html = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">暂无内容可管理</div>';
+    }
+    
+    listArea.innerHTML = html;
+  }
+
+  function selectAllPerms() {
+    document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = true);
+  }
+
+  function clearAllPerms() {
+    document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+  }
+
+  function savePermissions() {
+    let targetValue;
+    if (currentPermMode === 'user') {
+      targetValue = document.getElementById('permAccountSelect').value;
+    } else {
+      targetValue = `group:${document.getElementById('permGroupSelect').value}`;
+    }
+    
+    const db = getDbSync();
+    
+    // 直接用当前登录的管理员（内容存在管理员的 userData 中）
+    const adminUser = state.currentUser;
+    if (!adminUser || !db.users[adminUser] || db.users[adminUser].role !== 'admin') {
+      showToast('请使用管理员账号操作');
+      return;
+    }
+    if (!db.userData[adminUser]) db.userData[adminUser] = { categories: [], bookmarks: [] };
+    
+    // 处理每个勾选的项目
+    document.querySelectorAll('.perm-checkbox').forEach(cb => {
+      const type = cb.dataset.type;
+      const id = cb.dataset.id;
+      const isChecked = cb.checked;
+      
+      if (type === 'category') {
+        const cat = db.userData[adminUser].categories?.find(c => c.id === id);
+        if (cat) {
+          if (isChecked) {
+            // 勾选：添加到 visibleTo，如果之前为空则不处理
+            if (!cat.visibleTo) cat.visibleTo = [];
+            if (!cat.visibleTo.includes(targetValue)) {
+              cat.visibleTo.push(targetValue);
+            }
+          } else {
+            // 取消勾选：从 visibleTo 移除
+            if (cat.visibleTo) {
+              cat.visibleTo = cat.visibleTo.filter(u => u !== targetValue);
+              // 保留空数组，不删除字段（[] = 没有人可见，undefined = 从未设置）
+            }
+          }
+        }
+      } else if (type === 'bookmark') {
+        const bm = db.userData[adminUser].bookmarks?.find(b => b.id === id);
+        if (bm) {
+          if (isChecked) {
+            if (!bm.visibleTo) bm.visibleTo = [];
+            if (!bm.visibleTo.includes(targetValue)) {
+              bm.visibleTo.push(targetValue);
+            }
+          } else {
+            if (bm.visibleTo) {
+              bm.visibleTo = bm.visibleTo.filter(u => u !== targetValue);
+              // 保留空数组，不删除字段
+            }
+          }
+        }
+      }
+    });
+    
+    // 把过滤后的内容写入目标用户的 user_data（用户模式）
+    if (currentPermMode === 'user' && targetValue) {
+      const targetUser = targetValue;
+      if (db.users[targetUser] && db.users[targetUser].role !== 'admin') {
+        const adminData = db.userData[adminUser] || {};
+        const userGroups = db.users[targetUser]?.groups || [];
+        // 用与 isVisibleToUser 一致的逻辑过滤内容
+        const filterFn = (item) => {
+          if (item.visibleTo === undefined) return true;
+          if (Array.isArray(item.visibleTo) && item.visibleTo.length === 0) return false;
+          if (item.visibleTo.includes(targetUser)) return true;
+          const visibleGroups = item.visibleTo.filter(v => v.startsWith('group:'));
+          return visibleGroups.some(vg => userGroups.includes(vg.replace('group:', '')));
+        };
+        db.userData[targetUser] = {
+          categories: (adminData.categories || []).filter(filterFn),
+          bookmarks: (adminData.bookmarks || []).filter(filterFn)
+        };
+      }
+    }
+    
+    // 清除缓存并保存到云端
+    cachedDb = null;
+    saveDb(db).then(() => {
+      // 直接使用内存中最新数据刷新 state，避免异步加载延迟和缓存问题
+      const currentDb = getDbSync();
+      const adminName = state.currentUser;
+      if (adminName && currentDb.userData[adminName]) {
+        state.categories = currentDb.userData[adminName].categories || [];
+        state.bookmarks = currentDb.userData[adminName].bookmarks || [];
+      }
+      renderCategories();
+      renderBookmarks();
+    });
+    
+    closeModal('permissionMgrModal');
+    showToast('权限已保存');
   }
 
   function showResetPasswordModal() {
