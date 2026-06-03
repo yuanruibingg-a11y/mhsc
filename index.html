@@ -886,7 +886,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.9.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.10.0</div>
     </div>
   </aside>
 
@@ -1223,6 +1223,20 @@
     <div class="form-actions">
       <button class="btn btn-primary" onclick="saveUserGroupEdit()">保存</button>
       <button class="btn btn-cancel" onclick="closeModal('userGroupModal')">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="setLeaderModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">设置组长</div>
+    <div style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">
+      为 <span style="color:var(--accent)" id="setLeaderGroupName"></span> 选择组长
+    </div>
+    <div id="setLeaderMemberList" style="max-height:250px;overflow-y:auto;margin-bottom:16px"></div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveLeader()">保存</button>
+      <button class="btn btn-cancel" onclick="closeModal('setLeaderModal')">取消</button>
     </div>
   </div>
 </div>
@@ -3477,28 +3491,56 @@
   let currentPermMode = 'user'; // 'user' or 'group'
   
   async function openPermMgr(username) {
-    // 强制从云端拉取最新数据，确保多管理员赋权实时同步
     cachedDb = null;
     await getDb();
+    
+    const db = getDbSync();
+    const currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    const leaderGroup = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
+    const isLeader = !!leaderGroup;
     
     currentPermMode = 'user';
     switchPermMode('user');
     
-    // 直接用当前 state 数据，管理员登录时已有完整数据
     const select = document.getElementById('permAccountSelect');
-    const users = getUserList();
-    select.innerHTML = users.map(u => {
-      let roleLabel = '';
-      if (u.role === 'root') roleLabel = ' (超级)';
-      else if (u.role === 'admin') roleLabel = ' (管理员)';
-      return `<option value="${u.username}" ${u.username === username ? 'selected' : ''}>${u.username}${roleLabel}</option>`;
-    }).join('');
+    const tabBar = document.getElementById('permTabBar');
     
-    loadAccountPermissions(username);
+    if (isLeader) {
+      tabBar.style.display = 'none';
+      const allUsers = Object.keys(db.users);
+      const groupMembers = allUsers.filter(u => {
+        const userGroups = db.users[u]?.groups || [];
+        return db.users[u]?.role === 'user' && userGroups.includes(leaderGroup.id);
+      });
+      select.innerHTML = groupMembers.map(u => {
+        return `<option value="${u}" ${u === username ? 'selected' : ''}>${u}</option>`;
+      }).join('');
+      if (username && groupMembers.some(m => m === username)) {
+        currentPermTarget = username;
+      } else if (groupMembers.length > 0) {
+        currentPermTarget = groupMembers[0];
+      } else {
+        currentPermTarget = null;
+      }
+    } else {
+      tabBar.style.display = '';
+      const users = getUserList();
+      select.innerHTML = users.map(u => {
+        let roleLabel = '';
+        if (u.role === 'root') roleLabel = ' (超级)';
+        else if (u.role === 'admin') roleLabel = ' (管理员)';
+        return `<option value="${u.username}" ${u.username === username ? 'selected' : ''}>${u.username}${roleLabel}</option>`;
+      }).join('');
+      currentPermTarget = username;
+    }
+    
+    if (currentPermTarget) loadAccountPermissions(currentPermTarget);
     
     closeModal('userMgrModal');
     document.getElementById('permissionMgrModal').classList.add('show');
   }
+
+  let currentPermTarget = null;
 
   let selectedPermGroupId = null;
   let currentEditGroupId = null;
@@ -3530,12 +3572,25 @@
     const accountGroups = rootData.accountGroups || [];
     const listArea = document.getElementById('permGroupList');
     let html = '';
+    const currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    const isRootOrAdmin = currentRole === 'root' || currentRole === 'admin';
+    
     accountGroups.forEach(g => {
       const isSel = selectedPermGroupId === g.id;
+      const leaderText = g.leader ? ` 👑${g.leader}` : '';
+      let leaderAction = '';
+      if (isRootOrAdmin) {
+        leaderAction = g.leader
+          ? `<button class="nav-btn danger" onclick="event.stopPropagation();removeLeader('${g.id}')" title="撤职">撤职</button>`
+          : `<button class="nav-btn" onclick="event.stopPropagation();openSetLeaderModal('${g.id}')" title="设组长">👑</button>`;
+      } else if (g.leader) {
+        leaderAction = `<span style="font-size:11px;color:var(--accent)">👑${g.leader}</span>`;
+      }
       html += `<div style="display:flex;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;${isSel ? 'background:var(--accent-dim)' : ''}" onclick="selectPermGroup('${g.id}')" data-group-id="${g.id}">
-        <span style="flex:1;font-size:13px;color:${isSel ? 'var(--accent)' : 'var(--text-primary)'}">👥 ${g.name}</span>
-        <button class="nav-btn" onclick="event.stopPropagation();openEditGroupModal('${g.id}')" title="重命名">✎</button>
-        <button class="nav-btn danger" onclick="event.stopPropagation();deleteAccountGroup('${g.id}')" title="删除">✕</button>
+        <span style="flex:1;font-size:13px;color:${isSel ? 'var(--accent)' : 'var(--text-primary)'}">👥 ${g.name}${leaderText}</span>
+        ${leaderAction}
+        ${isRootOrAdmin ? `<button class="nav-btn" onclick="event.stopPropagation();openEditGroupModal('${g.id}')" title="重命名">✎</button>
+        <button class="nav-btn danger" onclick="event.stopPropagation();deleteAccountGroup('${g.id}')" title="删除">✕</button>` : ''}
       </div>`;
     });
     if (accountGroups.length === 0) {
@@ -3612,6 +3667,77 @@
     showToast('分组已删除');
   }
 
+  function getLeaderGroup() {
+    if (!state.currentUser) return null;
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
+    const accountGroups = (rootUser && db.userData[rootUser]?.accountGroups) || [];
+    return accountGroups.find(g => g.leader === state.currentUser) || null;
+  }
+
+  let currentSetLeaderGroupId = null;
+
+  function openSetLeaderModal(groupId) {
+    currentSetLeaderGroupId = groupId;
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
+    const accountGroups = (rootUser && db.userData[rootUser]?.accountGroups) || [];
+    const g = accountGroups.find(g => g.id === groupId);
+    if (!g) return;
+    document.getElementById('setLeaderGroupName').textContent = g.name;
+    const members = allUsers.filter(u => {
+      const userGroups = db.users[u]?.groups || [];
+      return db.users[u]?.role === 'user' && userGroups.includes(groupId);
+    });
+    const listArea = document.getElementById('setLeaderMemberList');
+    if (members.length === 0) {
+      listArea.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">该组暂无普通用户成员<br>请先将用户加入本组</div>';
+    } else {
+      listArea.innerHTML = members.map(m => {
+        const isCurrent = g.leader === m;
+        return `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;${isCurrent ? 'background:var(--accent-dim)' : ''}" onclick="document.getElementById('leaderRadio_${m}').checked=true">
+          <input type="radio" name="leaderRadio" id="leaderRadio_${m}" value="${m}" ${isCurrent ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">
+          <span style="font-size:13px;color:var(--text-primary)">${m}</span>
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('setLeaderModal').classList.add('show');
+  }
+
+  async function saveLeader() {
+    const username = document.querySelector('input[name="leaderRadio"]:checked')?.value;
+    if (!username) { showToast('请选择一个组员'); return; }
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
+    const rootData = db.userData[rootUser] || {};
+    const g = (rootData.accountGroups || []).find(g => g.id === currentSetLeaderGroupId);
+    if (!g) return;
+    g.leader = username;
+    cachedDb = null;
+    await saveDb(db);
+    renderPermGroupList();
+    closeModal('setLeaderModal');
+    showToast(username + ' 已设为组长');
+  }
+
+  async function removeLeader(groupId) {
+    if (!confirm('确定撤去该组长职务？')) return;
+    const db = getDbSync();
+    const allUsers = Object.keys(db.users);
+    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
+    const rootData = db.userData[rootUser] || {};
+    const g = (rootData.accountGroups || []).find(g => g.id === groupId);
+    if (!g) return;
+    g.leader = null;
+    cachedDb = null;
+    await saveDb(db);
+    renderPermGroupList();
+    showToast('已撤职');
+  }
+
   function loadAccountChanged() {
     const username = document.getElementById('permAccountSelect').value;
     loadAccountPermissions(username);
@@ -3635,6 +3761,7 @@
     }
     
     const currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    const leaderGroup = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
     const rootData = db.userData[rootUser] || {};
     const perms = rootData.permissions?.[targetId] || { categories: [], bookmarks: [] };
     const isGroupMode = targetId.startsWith('group:');
@@ -3650,6 +3777,12 @@
       const adminBmIds = adminPerms.allow?.bookmarks || adminPerms.bookmarks || [];
       allowedCats = (rootData.categories || []).filter(c => adminCatIds.includes(c.id));
       allowedBms = (rootData.bookmarks || []).filter(b => adminBmIds.includes(b.id));
+    } else if (leaderGroup) {
+      const gp = rootData.permissions?.['group:' + leaderGroup.id] || {};
+      const groupCatIds = gp.categories || [];
+      const groupBmIds = gp.bookmarks || [];
+      allowedCats = (rootData.categories || []).filter(c => groupCatIds.includes(c.id));
+      allowedBms = (rootData.bookmarks || []).filter(b => groupBmIds.includes(b.id));
     } else {
       allowedCats = [];
       allowedBms = [];
@@ -3825,7 +3958,8 @@
     
     const currentUser = state.currentUser;
     const currentRole = currentUser && db.users[currentUser]?.role;
-    if (currentRole !== 'root' && currentRole !== 'admin') {
+    const leaderGroup = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
+    if (currentRole !== 'root' && currentRole !== 'admin' && !leaderGroup) {
       showToast('请使用超级账号或管理员账号操作');
       return;
     }
@@ -3879,12 +4013,18 @@
           else denyBms.push(id);
         }
       });
-      if (currentRole === 'admin') {
-        const adminPerms = db.userData[rootUser].permissions?.[currentUser] || {};
-        const adminCatIds = adminPerms.allow?.categories || adminPerms.categories || [];
-        const adminBmIds = adminPerms.allow?.bookmarks || adminPerms.bookmarks || [];
-        adminCatSet = new Set(adminCatIds);
-        adminBmSet = new Set(adminBmIds);
+      if (currentRole === 'admin' || leaderGroup) {
+        const scopePerms = leaderGroup
+          ? (db.userData[rootUser].permissions?.['group:' + leaderGroup.id] || {})
+          : (db.userData[rootUser].permissions?.[currentUser] || {});
+        const scopeCatIds = leaderGroup
+          ? (scopePerms.categories || [])
+          : (scopePerms.allow?.categories || scopePerms.categories || []);
+        const scopeBmIds = leaderGroup
+          ? (scopePerms.bookmarks || [])
+          : (scopePerms.allow?.bookmarks || scopePerms.bookmarks || []);
+        adminCatSet = new Set(scopeCatIds);
+        adminBmSet = new Set(scopeBmIds);
         for (let i = allowCats.length - 1; i >= 0; i--) {
           if (!adminCatSet.has(allowCats[i])) allowCats.splice(i, 1);
         }
