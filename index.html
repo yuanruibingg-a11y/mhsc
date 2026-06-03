@@ -874,7 +874,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.7.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.7.2</div>
     </div>
   </aside>
 
@@ -3299,8 +3299,8 @@
       const isAdmin = u.role === 'admin' || u.role === 'root';
       const isRoot = u.role === 'root';
       const isCurrent = state.currentUser === u.username;
-      // 下拉框规则：root行永无；当前admin自己无；其余有
-      const noDropdown = u.role === 'root' || (currentUserRole === 'admin' && isCurrent);
+      // 下拉框规则：root行永无；admin登录时不能改任何非user的角色
+      const noDropdown = u.role === 'root' || (currentUserRole === 'admin' && u.role !== 'user');
       let userColor = 'var(--text-primary)';
       let fontWeight = 'normal';
       let selectBg = 'var(--bg-card)';
@@ -3321,8 +3321,8 @@
         extraText += '<span style="font-size:11px;color:var(--text-muted);background:var(--bg-surface);padding:1px 6px;border-radius:4px;margin-left:4px">测试</span>';
       }
       let actionText = '';
-      // 🔐 只出现在 user 行
-      if (u.role === 'user') {
+      // 🔐 出现在 user 行以及 root 登录时的 admin 行
+      if (u.role === 'user' || (currentUserRole === 'root' && u.role === 'admin')) {
         actionText += `<button class="nav-btn" onclick="openPermMgr('${u.username}')" title="权限管理">🔐</button>`;
       }
       if (u.username !== state.currentUser) {
