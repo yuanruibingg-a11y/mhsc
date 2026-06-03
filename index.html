@@ -1580,12 +1580,12 @@
       const rootData = db.userData[rootUser] || {};
       state.groups = rootData.groups || [];
       
-      if (user.role === 'root' || user.role === 'admin') {
-        // root 和 admin：看到全部内容
+      if (user.role === 'root') {
+        // root：看到全部内容
         state.categories = rootData.categories || [];
         state.bookmarks = rootData.bookmarks || [];
       } else {
-        // user：只看到被赋予权限的内容
+        // admin 和 user：只看到被赋予权限的内容
         const perms = rootData.permissions?.[username] || { categories: [], bookmarks: [] };
         const allCats = rootData.categories || [];
         const allBms = rootData.bookmarks || [];
@@ -3822,7 +3822,7 @@
       const rd = currentDb.userData[rootUser] || {};
       state.groups = rd.groups || [];
       
-      if (currentRole === 'root' || currentRole === 'admin') {
+      if (currentRole === 'root') {
         state.categories = rd.categories || [];
         state.bookmarks = rd.bookmarks || [];
       } else {
