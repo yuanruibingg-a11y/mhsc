@@ -3976,7 +3976,7 @@
       else if (newState === 'deny') { stateLabel.textContent = '已禁止'; stateLabel.style.color = '#e06060'; }
       else {
         const db = getDbSync();
-        const targetId = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : document.getElementById('permAccountSelect').value;
+        const targetId = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : (leaderGroupForMgr ? currentPermTarget : document.getElementById('permAccountSelect').value);
         const userGroups = db.users[targetId]?.groups || [];
         const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
         const rootData = rootUser ? db.userData[rootUser] : {};
