@@ -1439,7 +1439,8 @@
           securityQ: u.security_question,
           securityAHash: u.security_answer_hash || u.security_answer,
           isMock: u.is_mock,
-          groups: u.groups || []
+          groups: u.groups || [],
+          pwdVer: u.pwd_ver || 0
         };
       });
       userDataList.forEach(d => {
@@ -1504,7 +1505,8 @@
             security_answer: user.securityAHash,
             security_answer_hash: user.securityAHash,
             is_mock: user.isMock || false,
-            groups: user.groups || []
+            groups: user.groups || [],
+            pwd_ver: user.pwdVer || 0
           };
           
           console.log('📤 保存用户:', username, userData);
@@ -4394,10 +4396,11 @@
           }
         } catch(e) {
           savedUsername = savedRaw;
+          savedPwdVer = 0;
         }
         if (savedUsername && db.users[savedUsername]) {
           const dbPwdVer = db.users[savedUsername].pwdVer || 0;
-          if (savedPwdVer !== null && savedPwdVer !== dbPwdVer) {
+          if (savedPwdVer !== dbPwdVer) {
             console.log('🔑 密码已变更，需要重新登录:', savedUsername);
             localStorage.removeItem('currentUser');
             renderCategories();
