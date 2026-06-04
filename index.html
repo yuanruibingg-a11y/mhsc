@@ -884,6 +884,9 @@
       <input type="file" id="importHtmlFile" accept=".html,.htm" style="display:none" onchange="importBookmarksHtml(event)">
       <input type="file" id="importCsvFile" accept=".csv" style="display:none" onchange="importBookmarksCsv(event)">
     </div>
+    <div id="leaderPermSection" style="display:none;padding:8px 14px;border-top:1px solid var(--border)">
+      <button class="btn btn-sm" onclick="openPermMgr()" style="width:100%">👥 组员权限</button>
+    </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
       <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.0</div>
@@ -1182,12 +1185,18 @@
       <button class="btn btn-sm" onclick="openAddGroupModal()" style="margin-top:8px;width:100%">+ 新建分组</button>
     </div>
 
-    <div style="display:flex;gap:8px;margin-bottom:12px">
+    <div id="permBodyWrapper">
+    <div style="display:flex;gap:8px;margin-bottom:12px" id="permActionBtns">
       <button class="btn btn-primary btn-sm" onclick="selectAllPerms()">✅ 全选</button>
       <button class="btn btn-sm" onclick="clearAllPerms()">❌ 清空</button>
     </div>
+    <div id="permMemberListView" style="display:none;max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+    <div id="permBackBtnArea" style="display:none;margin-bottom:8px">
+      <button class="btn btn-sm" onclick="showPermMemberList()">← 返回组员列表</button>
+    </div>
     <div style="min-height:60px;font-size:12px;color:var(--text-muted);text-align:center;padding-top:20px" id="permHint">↑ 选择账号或分组后显示权限内容</div>
     <div id="permContentList" style="display:none;max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;background:var(--bg-card)"></div>
+    </div>
     <div class="form-actions" style="margin-top:16px">
       <button class="btn btn-primary" onclick="savePermissions()">保存权限</button>
       <button class="btn btn-cancel" onclick="closeModal('permissionMgrModal')">取消</button>
@@ -3125,9 +3134,12 @@
       document.getElementById('editToggleBtn').textContent = '✓';
       document.getElementById('editToggleBtn').title = '退出编辑模式';
       document.getElementById('userMgrBtn').style.display = '';
+      document.getElementById('leaderPermSection').style.display = 'none';
     } else {
       document.getElementById('editToggleBtn').style.display = 'none';
       document.getElementById('userMgrBtn').style.display = 'none';
+      const leaderGroup = getLeaderGroup();
+      document.getElementById('leaderPermSection').style.display = leaderGroup ? '' : 'none';
     }
 
     updateMainTitle();
@@ -3152,6 +3164,7 @@
     document.getElementById('userIndicator').style.display = 'none';
     document.getElementById('editToggleBtn').style.display = 'none';
     document.getElementById('userMgrBtn').style.display = 'none';
+    document.getElementById('leaderPermSection').style.display = 'none';
     document.getElementById('sidebarLogoutRow').style.display = 'none';
     document.getElementById('loginSidebarBtn').style.display = '';
     renderCategories();
@@ -3486,57 +3499,115 @@
   // 权限管理相关
   let currentPermMode = 'user'; // 'user' or 'group'
   
+  let leaderGroupForMgr = null;
+  let leaderMembersForMgr = [];
+
   async function openPermMgr(username) {
     cachedDb = null;
     await getDb();
     
     const db = getDbSync();
     const currentRole = state.currentUser && db.users[state.currentUser]?.role;
-    const leaderGroup = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
-    const isLeader = !!leaderGroup;
+    leaderGroupForMgr = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
+    const isLeader = !!leaderGroupForMgr;
     
     currentPermMode = 'user';
     switchPermMode('user');
     
     const select = document.getElementById('permAccountSelect');
     const tabBar = document.getElementById('permTabBar');
+    const memberListView = document.getElementById('permMemberListView');
+    const backBtnArea = document.getElementById('permBackBtnArea');
+    const permHint = document.getElementById('permHint');
+    const permContentList = document.getElementById('permContentList');
+    const permUserMode = document.getElementById('permUserMode');
+    const permActionBtns = document.getElementById('permActionBtns');
+    const permBodyWrapper = document.getElementById('permBodyWrapper');
     
     if (isLeader) {
       tabBar.style.display = 'none';
+      permUserMode.style.display = 'none';
+      permActionBtns.style.display = 'none';
       const allUsers = Object.keys(db.users);
-      const groupMembers = allUsers.filter(u => {
+      leaderMembersForMgr = allUsers.filter(u => {
         const userGroups = db.users[u]?.groups || [];
-        return db.users[u]?.role === 'user' && userGroups.includes(leaderGroup.id);
+        return db.users[u]?.role === 'user' && userGroups.includes(leaderGroupForMgr.id);
       });
-      select.innerHTML = groupMembers.map(u => {
-        return `<option value="${u}" ${u === username ? 'selected' : ''}>${u}</option>`;
-      }).join('');
-      if (username && groupMembers.some(m => m === username)) {
+      if (username && leaderMembersForMgr.some(m => m === username)) {
         currentPermTarget = username;
-      } else if (groupMembers.length > 0) {
-        currentPermTarget = groupMembers[0];
+        memberListView.style.display = 'none';
+        backBtnArea.style.display = '';
+        permHint.style.display = 'none';
+        permContentList.style.display = '';
+        renderPermContentList(username);
+      } else if (leaderMembersForMgr.length > 0) {
+        currentPermTarget = null;
+        showPermMemberList();
       } else {
         currentPermTarget = null;
+        memberListView.style.display = '';
+        memberListView.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:30px">本组暂无成员</div>';
+        backBtnArea.style.display = 'none';
+        permHint.style.display = 'none';
+        permContentList.style.display = 'none';
       }
     } else {
       tabBar.style.display = '';
+      memberListView.style.display = 'none';
+      backBtnArea.style.display = 'none';
+      permUserMode.style.display = '';
+      permActionBtns.style.display = '';
       const users = getUserList();
       select.innerHTML = users.map(u => {
         let roleLabel = '';
         if (u.role === 'root') roleLabel = ' (超级)';
         else if (u.role === 'admin') roleLabel = ' (管理员)';
-        return `<option value="${u.username}" ${u.username === username ? 'selected' : ''}>${u.username}${roleLabel}</option>`;
+        return '<option value="' + u.username + '" ' + (u.username === username ? 'selected' : '') + '>' + u.username + roleLabel + '</option>';
       }).join('');
       currentPermTarget = username;
+      if (currentPermTarget) loadAccountPermissions(currentPermTarget);
     }
-    
-    if (currentPermTarget) loadAccountPermissions(currentPermTarget);
     
     closeModal('userMgrModal');
     document.getElementById('permissionMgrModal').classList.add('show');
   }
 
   let currentPermTarget = null;
+
+  function showPermMemberList() {
+    document.getElementById('permMemberListView').style.display = '';
+    document.getElementById('permBackBtnArea').style.display = 'none';
+    document.getElementById('permHint').style.display = 'none';
+    document.getElementById('permContentList').style.display = 'none';
+    document.getElementById('permUserMode').style.display = 'none';
+    var html = '<div style="padding:10px 12px;font-size:14px;font-weight:600;color:var(--text-primary);border-bottom:1px solid var(--border)">👥 选择组员</div>';
+    leaderMembersForMgr.forEach(function(m) {
+      var db = getDbSync();
+      var userGroups = db.users[m]?.groups || [];
+      var groupNames = userGroups.map(function(gid) {
+        var allUsers = Object.keys(db.users);
+        var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
+        var rootData = (rootUser && db.userData[rootUser]) || {};
+        var g = (rootData.accountGroups || []).find(function(ag) { return ag.id === gid; });
+        return g ? g.name : gid;
+      }).join(', ');
+      html += '<div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--bg-surface)\'" onmouseout="this.style.background=\'\'" onclick="selectPermMember(\'' + m + '\')">'
+        + '<span style="flex:1;font-size:14px;color:var(--text-primary)">' + m + '</span>'
+        + '<span style="font-size:11px;color:var(--text-muted)">' + groupNames + '</span>'
+        + '<span style="font-size:16px;color:var(--text-muted)">→</span>'
+        + '</div>';
+    });
+    document.getElementById('permMemberListView').innerHTML = html;
+  }
+
+  function selectPermMember(username) {
+    currentPermTarget = username;
+    document.getElementById('permMemberListView').style.display = 'none';
+    document.getElementById('permBackBtnArea').style.display = '';
+    document.getElementById('permHint').style.display = 'none';
+    document.getElementById('permContentList').style.display = '';
+    renderPermContentList(username);
+  }
 
   let selectedPermGroupId = null;
   let currentEditGroupId = null;
@@ -3831,7 +3902,9 @@
         actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
       } else {
         actionHtml = `<span style="font-size:11px;color:${stateColor};min-width:50px">${stateLabel}</span>`;
-        actionHtml += `<button class="nav-btn" data-action="allow" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'allow' ? 'var(--accent)' : 'var(--text-muted)'};font-weight:${state === 'allow' ? '600' : 'normal'}">✓ 允许</button>`;
+        if (!leaderGroup) {
+          actionHtml += `<button class="nav-btn" data-action="allow" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'allow' ? 'var(--accent)' : 'var(--text-muted)'};font-weight:${state === 'allow' ? '600' : 'normal'}">✓ 允许</button>`;
+        }
         actionHtml += `<button class="nav-btn" data-action="deny" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'deny' ? 'var(--danger)' : 'var(--text-muted)'};font-weight:${state === 'deny' ? '600' : 'normal'}">✕ 禁止</button>`;
       }
       
@@ -3992,7 +4065,7 @@
         bookmarks: checkedBmIds
       };
     } else {
-      const targetValue = document.getElementById('permAccountSelect').value;
+      const targetValue = (leaderGroup && currentPermTarget) ? currentPermTarget : document.getElementById('permAccountSelect').value;
       const allowCats = [];
       const allowBms = [];
       const denyCats = [];
