@@ -889,7 +889,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.2</div>
     </div>
   </aside>
 
@@ -2991,7 +2991,11 @@
     user.passwordHash = newPwdHash.hash;
     user.passwordSalt = newPwdHash.salt;
     if (user.password) delete user.password;
+    user.pwdVer = (user.pwdVer || 0) + 1;
     saveDb(db);
+    try {
+      localStorage.setItem('currentUser', JSON.stringify({ username: state.currentUser, pwdVer: user.pwdVer }));
+    } catch(e) {}
     closeModal('changePwdModal');
     showToast('密码已修改');
   }
@@ -3140,9 +3144,10 @@
   }
 
   function afterLogin() {
-    // 保存登录状态
     try {
-      localStorage.setItem('currentUser', state.currentUser);
+      const db = getDbSync();
+      const pwdVer = db.users[state.currentUser]?.pwdVer || 0;
+      localStorage.setItem('currentUser', JSON.stringify({ username: state.currentUser, pwdVer: pwdVer }));
     } catch {}
     
     const db = getDbSync();
@@ -3531,7 +3536,8 @@
       passwordHash: pwdHash.hash,
       passwordSalt: pwdHash.salt,
       role: 'user',
-      groups: selectedGroups
+      groups: selectedGroups,
+      pwdVer: 1
     };
     if (!db.userData) db.userData = {};
     db.userData[username] = { categories: [], bookmarks: [] };
@@ -3561,6 +3567,7 @@
     const pwdHash = await hashPassword(newPwd);
     db.users[resetPwdTarget].passwordHash = pwdHash.hash;
     db.users[resetPwdTarget].passwordSalt = pwdHash.salt;
+    db.users[resetPwdTarget].pwdVer = (db.users[resetPwdTarget].pwdVer || 0) + 1;
     saveDb(db);
     closeModal('resetUserPwdModal');
     showToast('密码已重置');
@@ -4374,22 +4381,40 @@
     
     // 检查是否有保存的登录状态，有则自动登录
     try {
-      const savedUser = localStorage.getItem('currentUser');
+      const savedRaw = localStorage.getItem('currentUser');
       const db = getDbSync();
-      if (savedUser && db.users[savedUser]) {
-        console.log('🔐 自动登录用户:', savedUser);
-        // 先加载用户数据
-        await loadUserData(savedUser);
-        state.currentUser = savedUser;
-        // 然后执行登录后操作
-        afterLogin();
-        // 最后确保渲染
-        renderCategories();
-        renderBookmarks();
-        updateMainTitle();
-        showToast('已自动登录');
-        console.log('✅ 自动登录完成');
-        return;
+      if (savedRaw && db.users) {
+        let savedUsername = null;
+        let savedPwdVer = null;
+        try {
+          const parsed = JSON.parse(savedRaw);
+          if (typeof parsed === 'object' && parsed.username) {
+            savedUsername = parsed.username;
+            savedPwdVer = parsed.pwdVer;
+          }
+        } catch(e) {
+          savedUsername = savedRaw;
+        }
+        if (savedUsername && db.users[savedUsername]) {
+          const dbPwdVer = db.users[savedUsername].pwdVer || 0;
+          if (savedPwdVer !== null && savedPwdVer !== dbPwdVer) {
+            console.log('🔑 密码已变更，需要重新登录:', savedUsername);
+            localStorage.removeItem('currentUser');
+            renderCategories();
+            showPasswordModal();
+            return;
+          }
+          console.log('🔐 自动登录用户:', savedUsername);
+          await loadUserData(savedUsername);
+          state.currentUser = savedUsername;
+          afterLogin();
+          renderCategories();
+          renderBookmarks();
+          updateMainTitle();
+          showToast('已自动登录');
+          console.log('✅ 自动登录完成');
+          return;
+        }
       }
     } catch (e) {
       console.error('❌ 自动登录失败:', e);
