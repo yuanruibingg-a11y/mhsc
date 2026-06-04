@@ -1151,17 +1151,39 @@
     </div>
     
     <div id="userListArea" style="margin-bottom:16px;max-height:280px;overflow-y:auto"></div>
-    <div class="form-group" style="margin-bottom:10px">
-      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">添加模拟测试账号</label>
+    <div class="form-actions" style="justify-content:space-between">
+      <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ 添加用户</button>
       <div style="display:flex;gap:8px">
-        <input type="text" id="mockUsernameInput" placeholder="账号" style="flex:1;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:var(--font-sans);outline:none" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
-        <button class="btn btn-primary btn-sm" onclick="addMockAccount()">添加</button>
-        <button class="btn btn-sm" onclick="addBatchMockAccounts()" title="批量添加测试账号">批量</button>
+        <button class="btn btn-sm" onclick="openChangePasswordModal()">🔑 修改密码</button>
+        <button class="btn btn-cancel" onclick="closeModal('userMgrModal')">关闭</button>
       </div>
     </div>
-    <div class="form-actions" style="justify-content:space-between">
-      <button class="btn btn-sm" onclick="openChangePasswordModal()">🔑 修改密码</button>
-      <button class="btn btn-cancel" onclick="closeModal('userMgrModal')">关闭</button>
+  </div>
+</div>
+
+<div class="modal-overlay confirm-dialog" id="addUserModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">添加用户</div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">账号</label>
+      <input type="text" id="addUserUsername" placeholder="请输入账号" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">密码</label>
+      <input type="password" id="addUserPassword" placeholder="请输入密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">确认密码</label>
+      <input type="password" id="addUserPasswordConfirm" placeholder="再次输入密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''" onkeydown="if(event.key==='Enter')confirmAddUser()">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">所属分组</label>
+      <div id="addUserGroupList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div id="addUserError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+    <div class="confirm-actions" style="margin-top:16px">
+      <button class="btn btn-cancel" onclick="closeModal('addUserModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmAddUser()">保存</button>
     </div>
   </div>
 </div>
@@ -3249,7 +3271,6 @@
 
   function openUserManager() {
     renderUserList();
-    document.getElementById('mockUsernameInput').value = '';
     document.getElementById('userSearchInput').value = '';
     document.getElementById('userMgrModal').classList.add('show');
   }
@@ -3444,56 +3465,59 @@
     showToast(`已删除 ${username}`);
   }
 
-  async function addMockAccount() {
-    const input = document.getElementById('mockUsernameInput');
-    const username = input.value.trim();
-    if (!username) { showToast('请输入账号名'); return; }
+  function openAddUserModal() {
+    document.getElementById('addUserUsername').value = '';
+    document.getElementById('addUserPassword').value = '';
+    document.getElementById('addUserPasswordConfirm').value = '';
+    document.getElementById('addUserError').style.display = 'none';
     const db = getDbSync();
-    if (db.users[username]) { showToast('账号已存在'); return; }
-    const pwdHash = await hashPassword('123456');
-    const answerHash = await hashText('测试');
-    db.users[username] = { 
-      passwordHash: pwdHash.hash, 
-      passwordSalt: pwdHash.salt, 
-      role: 'user', 
-      securityQ: '你的出生地是哪里？', 
-      securityAHash: answerHash, 
-      isMock: true 
-    };
-    saveDb(db);
-    input.value = '';
-    renderUserList();
-    showToast(`已添加测试账号「${username}」(密码: 123456)`);
+    const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+    const rootData = rootUser ? (db.userData[rootUser] || {}) : {};
+    const groups = rootData.accountGroups || [];
+    var html = '';
+    groups.forEach(function(g) {
+      html += '<label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--text-primary);cursor:pointer;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm)">'
+        + '<input type="checkbox" class="addUserGroupCheck" value="' + g.id + '" onchange="this.parentElement.style.borderColor=this.checked?\'var(--accent)\':\'\'">'
+        + g.name
+        + '</label>';
+    });
+    if (!html) html = '<span style="font-size:12px;color:var(--text-muted)">暂无分组</span>';
+    document.getElementById('addUserGroupList').innerHTML = html;
+    document.getElementById('addUserModal').classList.add('show');
   }
 
-  async function addBatchMockAccounts() {
-    const names = ['张三', '李四', '王五', '赵六', '测试员A', '测试员B'];
+  async function confirmAddUser() {
+    const username = document.getElementById('addUserUsername').value.trim();
+    const password = document.getElementById('addUserPassword').value;
+    const passwordConfirm = document.getElementById('addUserPasswordConfirm').value;
+    const errorEl = document.getElementById('addUserError');
+    errorEl.style.display = 'none';
+
+    if (!username) { errorEl.textContent = '请输入账号'; errorEl.style.display = ''; return; }
+    if (!password) { errorEl.textContent = '请输入密码'; errorEl.style.display = ''; return; }
+    if (password !== passwordConfirm) { errorEl.textContent = '两次密码不一致'; errorEl.style.display = ''; return; }
+
     const db = getDbSync();
-    let added = 0;
-    const pwdHash = await hashPassword('123456');
-    const answerHash = await hashText('测试');
-    names.forEach(name => {
-      if (!db.users[name]) {
-        db.users[name] = { 
-          passwordHash: pwdHash.hash, 
-          passwordSalt: pwdHash.salt, 
-          role: 'user', 
-          securityQ: '你的出生地是哪里？', 
-          securityAHash: answerHash, 
-          isMock: true 
-        };
-        if (!db.userData) db.userData = {};
-        db.userData[name] = { categories: [], bookmarks: [] };
-        added++;
-      }
+    if (db.users[username]) { errorEl.textContent = '账号已存在'; errorEl.style.display = ''; return; }
+
+    var selectedGroups = [];
+    document.querySelectorAll('.addUserGroupCheck').forEach(function(cb) {
+      if (cb.checked) selectedGroups.push(cb.value);
     });
-    if (added > 0) {
-      saveDb(db);
-      renderUserList();
-      showToast(`已批量添加 ${added} 个测试账号 (密码: 123456)`);
-    } else {
-      showToast('所有测试账号已存在');
-    }
+
+    const pwdHash = await hashPassword(password);
+    db.users[username] = {
+      passwordHash: pwdHash.hash,
+      passwordSalt: pwdHash.salt,
+      role: 'user',
+      groups: selectedGroups
+    };
+    if (!db.userData) db.userData = {};
+    db.userData[username] = { categories: [], bookmarks: [] };
+    saveDb(db);
+    closeModal('addUserModal');
+    renderUserList();
+    showToast('已添加用户「' + username + '」');
   }
 
   // 权限管理相关
