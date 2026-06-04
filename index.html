@@ -889,7 +889,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.1</div>
     </div>
   </aside>
 
@@ -1184,6 +1184,21 @@
     <div class="confirm-actions" style="margin-top:16px">
       <button class="btn btn-cancel" onclick="closeModal('addUserModal')">取消</button>
       <button class="btn btn-primary" onclick="confirmAddUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay confirm-dialog" id="resetUserPwdModal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title" id="resetUserPwdTitle">重置密码</div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block">新密码</label>
+      <input type="password" id="resetUserPwdInput" placeholder="输入新密码" style="width:100%;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-size:14px;font-family:var(--font-sans);outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''" onkeydown="if(event.key==='Enter')confirmResetUserPwd()">
+    </div>
+    <div id="resetUserPwdError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+    <div class="confirm-actions" style="margin-top:16px">
+      <button class="btn btn-cancel" onclick="closeModal('resetUserPwdModal')">取消</button>
+      <button class="btn btn-primary" id="resetUserPwdConfirmBtn" onclick="confirmResetUserPwd()">保存</button>
     </div>
   </div>
 </div>
@@ -3337,6 +3352,9 @@
       if (u.role === 'user' || (currentUserRole === 'root' && u.role === 'admin')) {
         actionText += `<button class="nav-btn" onclick="openPermMgr('${u.username}')" title="权限管理">🔐</button>`;
       }
+      if (u.username !== state.currentUser && (currentUserRole === 'root' || currentUserRole === 'admin')) {
+        actionText += `<button class="nav-btn" onclick="openResetUserPwdModal('${u.username}')" title="修改密码">🔑</button>`;
+      }
       if (u.username !== state.currentUser) {
         actionText += `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
       }
@@ -3487,6 +3505,10 @@
   }
 
   async function confirmAddUser() {
+    const db = getDbSync();
+    const currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    if (currentRole !== 'root' && currentRole !== 'admin') { showToast('无权操作'); return; }
+
     const username = document.getElementById('addUserUsername').value.trim();
     const password = document.getElementById('addUserPassword').value;
     const passwordConfirm = document.getElementById('addUserPasswordConfirm').value;
@@ -3497,7 +3519,6 @@
     if (!password) { errorEl.textContent = '请输入密码'; errorEl.style.display = ''; return; }
     if (password !== passwordConfirm) { errorEl.textContent = '两次密码不一致'; errorEl.style.display = ''; return; }
 
-    const db = getDbSync();
     if (db.users[username]) { errorEl.textContent = '账号已存在'; errorEl.style.display = ''; return; }
 
     var selectedGroups = [];
@@ -3518,6 +3539,31 @@
     closeModal('addUserModal');
     renderUserList();
     showToast('已添加用户「' + username + '」');
+  }
+
+  let resetPwdTarget = '';
+
+  function openResetUserPwdModal(username) {
+    resetPwdTarget = username;
+    document.getElementById('resetUserPwdTitle').textContent = '重置密码 - ' + username;
+    document.getElementById('resetUserPwdInput').value = '';
+    document.getElementById('resetUserPwdError').style.display = 'none';
+    document.getElementById('resetUserPwdModal').classList.add('show');
+    setTimeout(function() { document.getElementById('resetUserPwdInput').focus(); }, 100);
+  }
+
+  async function confirmResetUserPwd() {
+    const newPwd = document.getElementById('resetUserPwdInput').value;
+    const errorEl = document.getElementById('resetUserPwdError');
+    errorEl.style.display = 'none';
+    if (!newPwd) { errorEl.textContent = '请输入新密码'; errorEl.style.display = ''; return; }
+    const db = getDbSync();
+    const pwdHash = await hashPassword(newPwd);
+    db.users[resetPwdTarget].passwordHash = pwdHash.hash;
+    db.users[resetPwdTarget].passwordSalt = pwdHash.salt;
+    saveDb(db);
+    closeModal('resetUserPwdModal');
+    showToast('密码已重置');
   }
 
   // 权限管理相关
