@@ -889,7 +889,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.3</div>
     </div>
   </aside>
 
@@ -1439,8 +1439,7 @@
           securityQ: u.security_question,
           securityAHash: u.security_answer_hash || u.security_answer,
           isMock: u.is_mock,
-          groups: u.groups || [],
-          pwdVer: u.pwd_ver || 0
+          groups: u.groups || []
         };
       });
       userDataList.forEach(d => {
@@ -1505,8 +1504,7 @@
             security_answer: user.securityAHash,
             security_answer_hash: user.securityAHash,
             is_mock: user.isMock || false,
-            groups: user.groups || [],
-            pwd_ver: user.pwdVer || 0
+            groups: user.groups || []
           };
           
           console.log('📤 保存用户:', username, userData);
@@ -2993,10 +2991,11 @@
     user.passwordHash = newPwdHash.hash;
     user.passwordSalt = newPwdHash.salt;
     if (user.password) delete user.password;
-    user.pwdVer = (user.pwdVer || 0) + 1;
+    var newVer = getUserPwdVer(state.currentUser) + 1;
+    setUserPwdVer(state.currentUser, newVer);
     saveDb(db);
     try {
-      localStorage.setItem('currentUser', JSON.stringify({ username: state.currentUser, pwdVer: user.pwdVer }));
+      localStorage.setItem('currentUser', JSON.stringify({ username: state.currentUser, pwdVer: newVer }));
     } catch(e) {}
     closeModal('changePwdModal');
     showToast('密码已修改');
@@ -3147,8 +3146,7 @@
 
   function afterLogin() {
     try {
-      const db = getDbSync();
-      const pwdVer = db.users[state.currentUser]?.pwdVer || 0;
+      var pwdVer = getUserPwdVer(state.currentUser);
       localStorage.setItem('currentUser', JSON.stringify({ username: state.currentUser, pwdVer: pwdVer }));
     } catch {}
     
@@ -3511,15 +3509,33 @@
     document.getElementById('addUserModal').classList.add('show');
   }
 
+  function getUserPwdVer(username) {
+    var db = getDbSync();
+    var allUsers = Object.keys(db.users);
+    var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootUser || !db.userData[rootUser]) return 0;
+    return (db.userData[rootUser].pwd_vers && db.userData[rootUser].pwd_vers[username]) || 0;
+  }
+
+  function setUserPwdVer(username, ver) {
+    var db = getDbSync();
+    var allUsers = Object.keys(db.users);
+    var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootUser) return;
+    if (!db.userData[rootUser]) db.userData[rootUser] = {};
+    if (!db.userData[rootUser].pwd_vers) db.userData[rootUser].pwd_vers = {};
+    db.userData[rootUser].pwd_vers[username] = ver;
+  }
+
   async function confirmAddUser() {
-    const db = getDbSync();
-    const currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    var db = getDbSync();
+    var currentRole = state.currentUser && db.users[state.currentUser]?.role;
     if (currentRole !== 'root' && currentRole !== 'admin') { showToast('无权操作'); return; }
 
-    const username = document.getElementById('addUserUsername').value.trim();
-    const password = document.getElementById('addUserPassword').value;
-    const passwordConfirm = document.getElementById('addUserPasswordConfirm').value;
-    const errorEl = document.getElementById('addUserError');
+    var username = document.getElementById('addUserUsername').value.trim();
+    var password = document.getElementById('addUserPassword').value;
+    var passwordConfirm = document.getElementById('addUserPasswordConfirm').value;
+    var errorEl = document.getElementById('addUserError');
     errorEl.style.display = 'none';
 
     if (!username) { errorEl.textContent = '请输入账号'; errorEl.style.display = ''; return; }
@@ -3533,16 +3549,16 @@
       if (cb.checked) selectedGroups.push(cb.value);
     });
 
-    const pwdHash = await hashPassword(password);
+    var pwdHash = await hashPassword(password);
     db.users[username] = {
       passwordHash: pwdHash.hash,
       passwordSalt: pwdHash.salt,
       role: 'user',
-      groups: selectedGroups,
-      pwdVer: 1
+      groups: selectedGroups
     };
     if (!db.userData) db.userData = {};
     db.userData[username] = { categories: [], bookmarks: [] };
+    setUserPwdVer(username, 1);
     saveDb(db);
     closeModal('addUserModal');
     renderUserList();
@@ -3569,7 +3585,7 @@
     const pwdHash = await hashPassword(newPwd);
     db.users[resetPwdTarget].passwordHash = pwdHash.hash;
     db.users[resetPwdTarget].passwordSalt = pwdHash.salt;
-    db.users[resetPwdTarget].pwdVer = (db.users[resetPwdTarget].pwdVer || 0) + 1;
+    setUserPwdVer(resetPwdTarget, getUserPwdVer(resetPwdTarget) + 1);
     saveDb(db);
     closeModal('resetUserPwdModal');
     showToast('密码已重置');
@@ -4399,7 +4415,7 @@
           savedPwdVer = 0;
         }
         if (savedUsername && db.users[savedUsername]) {
-          const dbPwdVer = db.users[savedUsername].pwdVer || 0;
+          var dbPwdVer = getUserPwdVer(savedUsername);
           if (savedPwdVer !== dbPwdVer) {
             console.log('🔑 密码已变更，需要重新登录:', savedUsername);
             localStorage.removeItem('currentUser');
