@@ -195,15 +195,18 @@
   }
   .nav-btn.danger:hover { color: var(--danger); }
 
-  .perm-state-label { font-size: 11px; padding: 2px 8px; border-radius: 3px; min-width: 44px; text-align: center; display: inline-block; cursor: default; }
-  .perm-state-label.s-allow { background: rgba(129,199,132,0.15); color: #81c784; }
-  .perm-state-label.s-deny { background: rgba(224,96,96,0.15); color: #e06060; }
-  .perm-state-label.s-inherit { background: rgba(76,175,80,0.12); color: #4caf50; }
-  .perm-state-label.s-default { background: rgba(224,96,96,0.12); color: #e06060; }
-  .perm-hover-actions { display: none; gap: 2px; align-items: center; }
-  .perm-hover-actions .nav-btn { font-size: 11px; padding: 1px 6px; border-radius: 3px; height: auto; width: auto; }
+  .perm-tri-group { display: none; align-items: center; gap: 3px; }
+  .perm-tri-btn { cursor: pointer; user-select: none; font-size: 11px; padding: 2px 7px; border-radius: 3px; color: var(--text-muted); white-space: nowrap; }
+  .perm-tri-btn:hover { background: var(--bg-card); }
+  .perm-tri-btn .perm-dot { font-size: 13px; margin-right: 2px; vertical-align: middle; }
+  .perm-state-label { font-size: 11px; padding: 2px 7px; border-radius: 3px; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; cursor: default; }
+  .perm-state-label .perm-dot { font-size: 13px; }
+  .perm-state-label.s-allow { color: var(--accent); }
+  .perm-state-label.s-deny { color: var(--danger); }
+  .perm-state-label.s-inherit { color: #4caf50; }
+  .perm-state-label.s-default { color: var(--danger); }
   .perm-item:hover .perm-state-label { display: none; }
-  .perm-item:hover .perm-hover-actions { display: inline-flex; }
+  .perm-item:hover .perm-tri-group { display: inline-flex; }
   .perm-item { position: relative; }
 
   .category-item {
@@ -4237,28 +4240,52 @@
     
     var permSearchText = (document.getElementById('permSearchInput') && document.getElementById('permSearchInput').value || '').toLowerCase();
     
+    function hasGroupInherit(itemId, itemType) {
+      if (isGroupMode) return false;
+      var userGroups = db.users[targetId]?.groups || [];
+      for (var gi2 = 0; gi2 < userGroups.length; gi2++) {
+        var gp2 = rootData.permissions?.['group:' + userGroups[gi2]];
+        if (gp2) {
+          var gList2 = itemType === 'category' ? (gp2.categories || []) : (gp2.bookmarks || []);
+          if (gList2.includes(itemId)) return true;
+        }
+      }
+      return false;
+    }
+
     function renderItem(item, itemType, icon, label, catId) {
       const state = getPermState(item.id, itemType);
-      let stateClass = '';
-      let stateText = '';
-      if (state === 'inherit') { stateClass = 's-inherit'; stateText = '◯ 默认'; }
-      else if (state === 'allow') { stateClass = 's-allow'; stateText = '✓ 允许'; }
-      else if (state === 'deny') { stateClass = 's-deny'; stateText = '✕ 禁止'; }
-      else { stateClass = 's-default'; stateText = '◯ 默认'; }
-      
+      var inheritedFromGroup = hasGroupInherit(item.id, itemType);
+
+      var allowColor = 'var(--text-muted)';
+      var denyColor = 'var(--text-muted)';
+      if (state === 'allow') allowColor = 'var(--accent)';
+      else if (state === 'deny') denyColor = 'var(--danger)';
+      var defaultBtnColor = inheritedFromGroup ? '#4caf50' : 'var(--danger)';
+
+      var allowDot = (state === 'allow') ? '●' : '○';
+      var denyDot = (state === 'deny') ? '●' : '○';
+      var defaultDot = (state === 'default' || state === 'inherit') ? '●' : '○';
+      var defaultTitle = inheritedFromGroup ? '默认继承分组权限' : '默认不继承';
+
       let actionHtml = '';
       if (isGroupMode) {
         const checked = state === 'allow';
         var catAttr = catId ? ' data-cat-id="' + catId + '"' : '';
-        actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''}${catAttr} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
+        actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''}${catAttr} data-inherited="${inheritedFromGroup ? '1' : '0'}" style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
       } else {
-        actionHtml += '<span class="perm-state-label ' + stateClass + '">' + stateText + '</span>';
-        actionHtml += '<span class="perm-hover-actions">';
+        var labelClass = 's-default';
+        var labelText = '默认';
+        if (state === 'allow') { labelClass = 's-allow'; labelText = '允许'; }
+        else if (state === 'deny') { labelClass = 's-deny'; labelText = '禁止'; }
+        else if (state === 'inherit') { labelClass = 's-inherit'; labelText = '默认'; }
+        actionHtml += '<span class="perm-state-label ' + labelClass + '"><span class="perm-dot">●</span> ' + labelText + '</span>';
+        actionHtml += '<span class="perm-tri-group">';
         if (!leaderGroup) {
-          actionHtml += '<button class="nav-btn" data-action="allow" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + (state === 'allow' ? 'var(--accent)' : 'var(--text-muted)') + ';font-weight:' + (state === 'allow' ? '600' : 'normal') + '">✓ 允许</button>';
+          actionHtml += '<span class="perm-tri-btn' + (state === 'allow' ? ' is-active' : '') + '" data-action="allow" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + allowColor + '"><span class="perm-dot">' + allowDot + '</span> 允许</span>';
         }
-        actionHtml += '<button class="nav-btn" data-action="deny" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + (state === 'deny' ? 'var(--danger)' : 'var(--text-muted)') + ';font-weight:' + (state === 'deny' ? '600' : 'normal') + '">✕ 禁止</button>';
-        actionHtml += '<button class="nav-btn" data-action="default" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:var(--text-muted)">◯ 默认</button>';
+        actionHtml += '<span class="perm-tri-btn' + (state === 'deny' ? ' is-active' : '') + '" data-action="deny" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + denyColor + '"><span class="perm-dot">' + denyDot + '</span> 禁止</span>';
+        actionHtml += '<span class="perm-tri-btn' + ((state === 'default' || state === 'inherit') ? ' is-active' : '') + '" data-action="default" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + defaultBtnColor + '" title="' + defaultTitle + '"><span class="perm-dot">' + defaultDot + '</span> 默认</span>';
         actionHtml += '</span>';
       }
       
@@ -4540,47 +4567,46 @@
 
     parent.dataset.state = newState;
 
-    var allowBtn = parent.querySelector('[data-action="allow"]');
-    var denyBtn = parent.querySelector('[data-action="deny"]');
-    var defaultBtn = parent.querySelector('[data-action="default"]');
-    if (newState === 'allow') {
-      if (allowBtn) { allowBtn.style.color = 'var(--accent)'; allowBtn.style.fontWeight = '600'; }
-      if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
-      if (defaultBtn) { defaultBtn.style.color = 'var(--text-muted)'; defaultBtn.style.fontWeight = 'normal'; }
-    } else if (newState === 'deny') {
-      if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
-      if (denyBtn) { denyBtn.style.color = 'var(--danger)'; denyBtn.style.fontWeight = '600'; }
-      if (defaultBtn) { defaultBtn.style.color = 'var(--text-muted)'; defaultBtn.style.fontWeight = 'normal'; }
-    } else {
-      if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
-      if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
-      if (defaultBtn) { defaultBtn.style.color = 'var(--text-muted)'; defaultBtn.style.fontWeight = 'normal'; }
+    var dbForToggle = getDbSync();
+    var targetIdForToggle = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : (leaderGroupForMgr ? currentPermTarget : document.getElementById('permAccountSelect').value);
+    var userGroupsForToggle = dbForToggle.users[targetIdForToggle]?.groups || [];
+    var rootUserForToggle = Object.keys(dbForToggle.users).find(function(u) { return dbForToggle.users[u]?.role === 'root'; });
+    var rootDataForToggle = rootUserForToggle ? dbForToggle.userData[rootUserForToggle] : {};
+    var inheritedForToggle = false;
+    for (var hi = 0; hi < userGroupsForToggle.length; hi++) {
+      var gp3 = rootDataForToggle.permissions?.['group:' + userGroupsForToggle[hi]];
+      if (gp3) {
+        var gList3 = itemType === 'category' ? (gp3.categories || []) : (gp3.bookmarks || []);
+        if (gList3.includes(itemId)) { inheritedForToggle = true; break; }
+      }
     }
+
+    var triBtns = parent.querySelectorAll('.perm-tri-btn');
+    triBtns.forEach(function(t) { t.classList.remove('is-active'); var d = t.querySelector('.perm-dot'); if (d) d.textContent = '○'; t.style.color = 'var(--text-muted)'; });
+    var clickedBtn = parent.querySelector('[data-action="' + action + '"]');
+    var dot = clickedBtn ? clickedBtn.querySelector('.perm-dot') : null;
+    if (dot) dot.textContent = '●';
+    if (newState === 'allow') {
+      if (clickedBtn) clickedBtn.style.color = 'var(--accent)';
+    } else if (newState === 'deny') {
+      if (clickedBtn) clickedBtn.style.color = 'var(--danger)';
+    } else {
+      var defaultBtnColor = inheritedForToggle ? '#4caf50' : 'var(--danger)';
+      if (clickedBtn) { clickedBtn.style.color = defaultBtnColor; }
+    }
+    if (clickedBtn) clickedBtn.classList.add('is-active');
 
     var stateLabel = parent.querySelector('.perm-state-label');
     if (stateLabel) {
       if (newState === 'allow') {
         stateLabel.className = 'perm-state-label s-allow';
-        stateLabel.textContent = '✓ 允许';
+        stateLabel.innerHTML = '<span class="perm-dot">●</span> 允许';
       } else if (newState === 'deny') {
         stateLabel.className = 'perm-state-label s-deny';
-        stateLabel.textContent = '✕ 禁止';
+        stateLabel.innerHTML = '<span class="perm-dot">●</span> 禁止';
       } else {
-        var db = getDbSync();
-        var targetId = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : (leaderGroupForMgr ? currentPermTarget : document.getElementById('permAccountSelect').value);
-        var userGroups = db.users[targetId]?.groups || [];
-        var rootUser2 = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
-        var rootData2 = rootUser2 ? db.userData[rootUser2] : {};
-        var inherited = false;
-        for (var gi = 0; gi < userGroups.length; gi++) {
-          var gp = rootData2.permissions?.['group:' + userGroups[gi]];
-          if (gp) {
-            var gList = itemType === 'category' ? (gp.categories || []) : (gp.bookmarks || []);
-            if (gList.includes(itemId)) { inherited = true; break; }
-          }
-        }
-        stateLabel.className = 'perm-state-label ' + (inherited ? 's-inherit' : 's-default');
-        stateLabel.textContent = '◯ 默认';
+        stateLabel.className = 'perm-state-label ' + (inheritedForToggle ? 's-inherit' : 's-default');
+        stateLabel.innerHTML = '<span class="perm-dot">●</span> 默认';
       }
     }
 
