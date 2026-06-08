@@ -969,7 +969,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.12.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.13.2</div>
     </div>
   </aside>
 
@@ -4185,7 +4185,33 @@
       return 'default';
     }
     
-    function renderItem(item, itemType, icon, label) {
+    if (!window._expandedCatsInPerm) window._expandedCatsInPerm = {};
+    var expandedSet = window._expandedCatsInPerm;
+    
+    var catBms = {};
+    allowedBms.forEach(function(bm) {
+      var cid = bm.categoryId || '__none__';
+      if (!catBms[cid]) catBms[cid] = [];
+      catBms[cid].push(bm);
+    });
+
+    var catAggregate = {};
+    allowedCats.forEach(function(cat) {
+      var bms = catBms[cat.id] || [];
+      if (bms.length === 0) { catAggregate[cat.id] = 'none'; return; }
+      var allowCount = 0;
+      bms.forEach(function(bm) {
+        var s = getPermState(bm.id, 'bookmark');
+        if (s === 'allow') allowCount++;
+      });
+      if (allowCount === 0) catAggregate[cat.id] = 'none';
+      else if (allowCount === bms.length) catAggregate[cat.id] = 'all';
+      else catAggregate[cat.id] = 'partial';
+    });
+    
+    var permSearchText = (document.getElementById('permSearchInput') && document.getElementById('permSearchInput').value || '').toLowerCase();
+    
+    function renderItem(item, itemType, icon, label, catId) {
       const state = getPermState(item.id, itemType);
       let stateLabel = '';
       let stateColor = '';
@@ -4197,7 +4223,8 @@
       let actionHtml = '';
       if (isGroupMode) {
         const checked = state === 'allow';
-        actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
+        var catAttr = catId ? ' data-cat-id="' + catId + '"' : '';
+        actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''}${catAttr} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
       } else {
         actionHtml = `<span style="font-size:11px;color:${stateColor};min-width:50px">${stateLabel}</span>`;
         if (!leaderGroup) {
@@ -4206,32 +4233,264 @@
         actionHtml += `<button class="nav-btn" data-action="deny" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'deny' ? 'var(--danger)' : 'var(--text-muted)'};font-weight:${state === 'deny' ? '600' : 'normal'}">✕ 禁止</button>`;
       }
       
-      return `<div class="perm-item" data-type="${itemType}" data-id="${item.id}" data-state="${state}" style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:6px">
+      return `<div class="perm-item" data-type="${itemType}" data-id="${item.id}" data-state="${state}"${catId ? ' data-cat-id="' + catId + '"' : ''} style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:6px">
         ${actionHtml}
         <span style="flex:1;font-size:13px;color:var(--text-primary)">${icon} ${label}</span>
       </div>`;
     }
     
+    // 搜索过滤、展开折叠按钮
+    html += '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">';
+    html += '<input type="text" id="permSearchInput" placeholder="搜索分类或收藏..." style="flex:1;padding:4px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:12px;outline:none" value="' + (permSearchText || '') + '" oninput="filterPermContent(\'' + targetId + '\')">';
+    html += '<button class="btn btn-sm" onclick="expandAllPermCats(\'' + targetId + '\')" style="font-size:11px;padding:2px 8px">↕ 展开</button>';
+    html += '<button class="btn btn-sm" onclick="collapseAllPermCats(\'' + targetId + '\')" style="font-size:11px;padding:2px 8px">⊟ 折叠</button>';
+    html += '</div>';
+
+    var anyVisible = false;
+
     if (allowedCats.length > 0) {
-      html += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:500">📁 分类</div>';
-      allowedCats.forEach(cat => {
-        html += renderItem(cat, 'category', '📁', cat.name);
+      allowedCats.forEach(function(cat) {
+        var bms = catBms[cat.id] || [];
+        var catId = cat.id;
+        if (expandedSet[catId] === undefined) expandedSet[catId] = bms.length > 0;
+        var isExpanded = expandedSet[catId];
+        var toggleIcon = bms.length > 0 ? (isExpanded ? '▼' : '▶') : '';
+
+        // 搜索过滤书签
+        var filteredBms = bms;
+        if (permSearchText) {
+          filteredBms = bms.filter(function(bm) { return bm.name.toLowerCase().includes(permSearchText); });
+          // 如果分类名匹配，显示全部分类下的书签
+          if (cat.name.toLowerCase().includes(permSearchText)) {
+            filteredBms = bms;
+            if (!isExpanded) { expandedSet[catId] = true; isExpanded = true; }
+          }
+          // 有匹配书签时自动展开
+          if (filteredBms.length > 0 && !isExpanded) { expandedSet[catId] = true; isExpanded = true; }
+        }
+
+        // 搜索时隐藏无匹配的分类
+        var catNameMatch = permSearchText && cat.name.toLowerCase().includes(permSearchText);
+        if (permSearchText && filteredBms.length === 0 && !catNameMatch) return;
+        anyVisible = true;
+
+        var catLabel = cat.name + (bms.length > 0 ? ' (' + bms.length + ')' : '');
+        var catState = getPermState(cat.id, 'category');
+
+        // Category tri-state indicator (aggregate of bookmarks)
+        var triIndicator = '';
+        if (isGroupMode && bms.length > 0) {
+          var agg = catAggregate[cat.id] || 'none';
+          if (agg === 'all') triIndicator = '<span style="color:var(--accent);margin-right:4px" title="全部允许">✔</span>';
+          else if (agg === 'partial') triIndicator = '<span style="color:var(--text-muted);margin-right:4px" title="部分允许">▬</span>';
+          else triIndicator = '<span style="color:var(--text-muted);margin-right:4px;opacity:0.4" title="全未允许">☐</span>';
+        }
+
+        html += '<div class="perm-cat-header perm-item" data-type="category" data-id="' + catId + '" data-state="' + catState + '" style="display:flex;align-items:center;padding:4px 0;cursor:pointer" onclick="togglePermCategoryExpand(\'' + catId + '\',\'' + targetId + '\')">';
+        html += '<span class="perm-cat-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">' + toggleIcon + '</span>';
+        html += triIndicator;
+        if (isGroupMode) {
+          html += '<span class="perm-cat-tri-btn" style="cursor:pointer;margin-right:6px;font-size:13px;user-select:none" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\')" title="全选/取消该分类下所有收藏">';
+          html += '<input type="checkbox" class="perm-cat-aggregate" data-cat-id="' + catId + '" ' + (catState === 'allow' ? 'checked' : '') + ' style="pointer-events:none;accent-color:var(--accent)">';
+          html += '</span>';
+        } else {
+          html += '<span style="font-size:11px;color:' + (function(){var cs=getPermState(cat.id,'category');if(cs==='inherit')return'#4caf50';else if(cs==='allow')return'#81c784';else if(cs==='deny')return'#e06060';else return'var(--text-muted)';})() + ';min-width:50px">' + (function(){var cs=getPermState(cat.id,'category');if(cs==='inherit')return'继承';else if(cs==='allow')return'额外添加';else if(cs==='deny')return'已禁止';else return'未继承';})() + '</span>';
+          if (!leaderGroup) {
+            html += '<button class="nav-btn" data-action="allow" data-type="category" data-id="' + cat.id + '" onclick="event.stopPropagation();togglePermState(this,\'category\',\'' + cat.id + '\')" style="color:' + (catState === 'allow' ? 'var(--accent)' : 'var(--text-muted)') + ';font-weight:' + (catState === 'allow' ? '600' : 'normal') + '">✓ 允许</button>';
+          }
+          html += '<button class="nav-btn" data-action="deny" data-type="category" data-id="' + cat.id + '" onclick="event.stopPropagation();togglePermState(this,\'category\',\'' + cat.id + '\')" style="color:' + (catState === 'deny' ? 'var(--danger)' : 'var(--text-muted)') + ';font-weight:' + (catState === 'deny' ? '600' : 'normal') + '">✕ 禁止</button>';
+          // Aggregate bookmark indicator for account mode
+          if (bms.length > 0) {
+            var agg2 = catAggregate[cat.id] || 'none';
+            if (agg2 === 'all') html += '<span style="font-size:10px;color:var(--accent);margin-left:4px" title="该分类下收藏全部允许">✔</span>';
+            else if (agg2 === 'partial') html += '<span style="font-size:10px;color:var(--text-muted);margin-left:4px" title="该分类下收藏部分允许">▬</span>';
+            else html += '<span style="font-size:10px;color:var(--text-muted);margin-left:4px;opacity:0.3" title="该分类下收藏全未允许">☐</span>';
+          }
+        }
+        html += '<span style="flex:1;font-size:13px;color:var(--text-primary);font-weight:500">📁 ' + catLabel + '</span>';
+        html += '</div>';
+        
+        html += '<div class="perm-cat-items" data-cat-id="' + catId + '" style="padding-left:20px;' + (isExpanded ? '' : 'display:none') + '">';
+        filteredBms.forEach(function(bm) {
+          html += renderItem(bm, 'bookmark', '🔗', bm.name, catId);
+        });
+        html += '</div>';
       });
+
+      if (catBms['__none__'] && catBms['__none__'].length > 0) {
+        var noneBms = catBms['__none__'];
+        if (permSearchText) {
+          noneBms = noneBms.filter(function(bm) { return bm.name.toLowerCase().includes(permSearchText); });
+        }
+        if (noneBms.length > 0 || !permSearchText) {
+          anyVisible = true;
+          html += '<div class="perm-cat-header" style="display:flex;align-items:center;padding:4px 0;font-size:12px;color:var(--text-muted);font-weight:500">';
+          html += '<span class="perm-cat-toggle" style="width:18px;text-align:center;font-size:10px"></span>';
+          html += '<span style="flex:1">📁 未分类</span>';
+          html += '</div>';
+          html += '<div class="perm-cat-items" style="padding-left:20px">';
+          noneBms.forEach(function(bm) {
+            html += renderItem(bm, 'bookmark', '🔗', bm.name, '');
+          });
+          html += '</div>';
+        }
+      }
     }
     
-    if (allowedBms.length > 0) {
-      html += '<div style="font-size:12px;color:var(--text-muted);margin:12px 0 8px;font-weight:500">🔗 收藏</div>';
-      allowedBms.forEach(bm => {
-        html += renderItem(bm, 'bookmark', '🔗', bm.name);
-      });
-    }
-    
-    if (allowedCats.length === 0 && allowedBms.length === 0) {
-      html = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">暂无内容可管理</div>';
+    if (!anyVisible && (allowedCats.length > 0 || allowedBms.length > 0)) {
+      html += '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">无匹配的分类或收藏</div>';
+    } else if (allowedCats.length === 0 && allowedBms.length === 0) {
+      html += '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">暂无内容可管理</div>';
     }
     
     listArea.innerHTML = html;
   }
+  
+  function togglePermCategoryExpand(catId, targetId) {
+    var expandedSet = window._expandedCatsInPerm || {};
+    expandedSet[catId] = !expandedSet[catId];
+    window._expandedCatsInPerm = expandedSet;
+    renderPermContentList(targetId);
+  }
+
+  function expandAllPermCats(targetId) {
+    var expandedSet = window._expandedCatsInPerm || {};
+    Object.keys(expandedSet).forEach(function(k) { expandedSet[k] = true; });
+    window._expandedCatsInPerm = expandedSet;
+    renderPermContentList(targetId);
+  }
+
+  function collapseAllPermCats(targetId) {
+    var expandedSet = window._expandedCatsInPerm || {};
+    Object.keys(expandedSet).forEach(function(k) { expandedSet[k] = false; });
+    window._expandedCatsInPerm = expandedSet;
+    renderPermContentList(targetId);
+  }
+
+  function filterPermContent(targetId) {
+    renderPermContentList(targetId);
+  }
+
+  function toggleAllBmsInCat(catId, targetId) {
+    var db = getDbSync();
+    var allUsers = Object.keys(db.users);
+    var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
+    var rootData = rootUser ? db.userData[rootUser] : {};
+    var perms = rootData.permissions?.[targetId] || { categories: [], bookmarks: [] };
+    var isGroupMode = targetId.startsWith('group:');
+    var currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    var leaderGroup = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
+
+    if (isGroupMode) {
+      // 分组模式：获取该分类下所有书签，判断当前是否全部勾选
+      var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
+      if (!itemsEl) return;
+      var checkboxes = itemsEl.querySelectorAll('.perm-checkbox');
+      if (checkboxes.length === 0) return;
+      var allChecked = true;
+      checkboxes.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+      // 切换：如果全选就全取消，否则全选
+      checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
+      // 更新分类行的 aggregate checkbox
+      updateCatAggregateCheckbox(catId);
+    } else {
+      // 按账号模式：批量 toggle bookmark 的 allow/deny
+      var catBms = [];
+      var allowedBms = rootData.bookmarks || [];
+      var allCats = rootData.categories || [];
+      allowedBms.forEach(function(bm) {
+        if (bm.categoryId === catId) catBms.push(bm);
+      });
+      if (catBms.length === 0) return;
+      var allAllowed = true;
+      catBms.forEach(function(bm) {
+        var s = (function() {
+          var up = perms;
+          if (up.allow || up.deny) {
+            var alB = up.allow?.bookmarks || [];
+            var dlB = up.deny?.bookmarks || [];
+            if (dlB.includes(bm.id)) return 'deny';
+            if (alB.includes(bm.id)) return 'allow';
+          } else {
+            var bL = up.bookmarks || [];
+            if (bL.includes(bm.id)) return 'allow';
+          }
+          return 'default';
+        })();
+        if (s !== 'allow') allAllowed = false;
+      });
+      // 全部
+      var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
+      if (itemsEl) {
+        var todoStates = itemsEl.querySelectorAll('.perm-item');
+        todoStates.forEach(function(item) {
+          var id = item.dataset.id;
+          if (allAllowed) {
+            // 全部取消允许
+            if (item.dataset.state === 'allow') {
+              item.dataset.state = 'default';
+              var allowBtn = item.querySelector('[data-action="allow"]');
+              if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
+              var stLbl = item.querySelector('span');
+              if (stLbl && stLbl.textContent.match(/额外添加/)) { stLbl.textContent = '未继承'; stLbl.style.color = 'var(--text-muted)'; }
+            }
+          } else {
+            // 全部允许（先取消deny）
+            if (item.dataset.state === 'deny') {
+              item.dataset.state = 'default';
+              var denyBtn = item.querySelector('[data-action="deny"]');
+              if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
+              var stLbl = item.querySelector('span');
+              if (stLbl && stLbl.textContent.match(/已禁止/)) { stLbl.textContent = '未继承'; stLbl.style.color = 'var(--text-muted)'; }
+            }
+            if (item.dataset.state !== 'allow') {
+              item.dataset.state = 'allow';
+              var allowBtn = item.querySelector('[data-action="allow"]');
+              if (allowBtn) { allowBtn.style.color = 'var(--accent)'; allowBtn.style.fontWeight = '600'; }
+              var stLbl2 = item.querySelector('span');
+              if (stLbl2 && (stLbl2.textContent.match(/未继承|继承/) || stLbl2.textContent === '')) { stLbl2.textContent = '额外添加'; stLbl2.style.color = '#81c784'; }
+            }
+          }
+        });
+      }
+    }
+  }
+
+  function updateCatAggregateCheckbox(catId) {
+    var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
+    if (!itemsEl) return;
+    var checkboxes = itemsEl.querySelectorAll('.perm-checkbox');
+    var checkedCount = 0;
+    var total = checkboxes.length;
+    checkboxes.forEach(function(cb) { if (cb.checked) checkedCount++; });
+    var aggEl = document.querySelector('.perm-cat-aggregate[data-cat-id="' + catId + '"]');
+    if (aggEl) {
+      if (checkedCount === 0) { aggEl.checked = false; aggEl.indeterminate = false; }
+      else if (checkedCount === total) { aggEl.checked = true; aggEl.indeterminate = false; }
+      else { aggEl.checked = false; aggEl.indeterminate = true; }
+    }
+    if (total > 0) {
+      var headerEl = document.querySelector('.perm-cat-header[data-id="' + catId + '"]');
+      if (headerEl) {
+        var aggSpan = headerEl.querySelector('.perm-cat-tri-btn');
+        if (aggSpan) {
+          var prev = aggSpan.previousElementSibling;
+          if (prev && prev.classList.contains('perm-checkbox') === false && prev.tagName === 'SPAN') {
+            if (checkedCount === total) { prev.innerHTML = '✔'; prev.style.color = 'var(--accent)'; prev.style.opacity = '1'; }
+            else if (checkedCount === 0) { prev.innerHTML = '☐'; prev.style.color = 'var(--text-muted)'; prev.style.opacity = '0.4'; }
+            else { prev.innerHTML = '▬'; prev.style.color = 'var(--text-muted)'; prev.style.opacity = '1'; }
+          }
+        }
+      }
+    }
+  }
+
+  // 监听书签 checkbox 变更，更新分类三态
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('perm-checkbox') && e.target.dataset.catId) {
+      updateCatAggregateCheckbox(e.target.dataset.catId);
+    }
+  });
 
   function togglePermState(btn, itemType, itemId) {
     const action = btn.dataset.action;
@@ -4295,6 +4554,12 @@
   function selectAllPerms() {
     if (currentPermMode === 'group') {
       document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = true);
+      document.querySelectorAll('.perm-cat-aggregate').forEach(function(agg) {
+        var catId = agg.dataset.catId;
+        agg.checked = true;
+        agg.indeterminate = false;
+        updateCatTriIndicator(catId, true);
+      });
     } else {
       document.querySelectorAll('.perm-item[data-state="default"], .perm-item[data-state="inherit"]').forEach(item => {
         togglePermState(item.querySelector('[data-action="allow"]'), item.dataset.type, item.dataset.id);
@@ -4308,6 +4573,12 @@
   function clearAllPerms() {
     if (currentPermMode === 'group') {
       document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+      document.querySelectorAll('.perm-cat-aggregate').forEach(function(agg) {
+        var catId = agg.dataset.catId;
+        agg.checked = false;
+        agg.indeterminate = false;
+        updateCatTriIndicator(catId, false);
+      });
     } else {
       document.querySelectorAll('.perm-item[data-state="allow"]').forEach(item => {
         togglePermState(item.querySelector('[data-action="allow"]'), item.dataset.type, item.dataset.id);
@@ -4317,6 +4588,18 @@
           togglePermState(item.querySelector('[data-action="deny"]'), item.dataset.type, item.dataset.id);
         }
       });
+    }
+  }
+
+  function updateCatTriIndicator(catId, isAllChecked) {
+    var headerEl = document.querySelector('.perm-cat-header[data-id="' + catId + '"]');
+    if (!headerEl) return;
+    var triSpan = headerEl.querySelector('.perm-cat-tri-btn');
+    if (!triSpan) return;
+    var prev = triSpan.previousElementSibling;
+    if (prev && !prev.classList.contains('perm-checkbox') && prev.tagName === 'SPAN') {
+      if (isAllChecked) { prev.innerHTML = '✔'; prev.style.color = 'var(--accent)'; prev.style.opacity = '1'; }
+      else { prev.innerHTML = '☐'; prev.style.color = 'var(--text-muted)'; prev.style.opacity = '0.4'; }
     }
   }
 
