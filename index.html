@@ -4240,6 +4240,25 @@
     
     var permSearchText = (document.getElementById('permSearchInput') && document.getElementById('permSearchInput').value || '').toLowerCase();
     
+    var catHasAnyInherit = {};
+    if (!isGroupMode) {
+      allowedCats.forEach(function(cat) {
+        var bms = catBms[cat.id] || [];
+        var anyInherit = false;
+        var userGroups = db.users[targetId]?.groups || [];
+        for (var bi = 0; bi < bms.length && !anyInherit; bi++) {
+          for (var gi = 0; gi < userGroups.length; gi++) {
+            var gp = rootData.permissions?.['group:' + userGroups[gi]];
+            if (gp) {
+              var gList = (gp.bookmarks || []);
+              if (gList.includes(bms[bi].id)) { anyInherit = true; break; }
+            }
+          }
+        }
+        catHasAnyInherit[cat.id] = anyInherit;
+      });
+    }
+    
     function hasGroupInherit(itemId, itemType) {
       if (isGroupMode) return false;
       var userGroups = db.users[targetId]?.groups || [];
@@ -4332,32 +4351,30 @@
 
         var catLabel = cat.name + (bms.length > 0 ? ' (' + bms.length + ')' : '');
         var catState = getPermState(cat.id, 'category');
-
-        // Category tri-state indicator (aggregate of bookmarks)
-        var triIndicator = '';
-        if (isGroupMode && bms.length > 0) {
-          var agg = catAggregate[cat.id] || 'none';
-          if (agg === 'all') triIndicator = '<span style="color:var(--accent);margin-right:4px" title="全部允许">✔</span>';
-          else if (agg === 'partial') triIndicator = '<span style="color:var(--text-muted);margin-right:4px" title="部分允许">▬</span>';
-          else triIndicator = '<span style="color:var(--text-muted);margin-right:4px;opacity:0.4" title="全未允许">☐</span>';
-        }
+        var catInherit = catHasAnyInherit[cat.id] || false;
+        var agg = catAggregate[cat.id] || 'none';
+        var catLabelClass = 's-default', catLabelText = '默认';
+        if (isGroupMode && agg === 'all') { catLabelClass = 's-allow'; catLabelText = '允许'; }
+        else if (isGroupMode) { catLabelClass = 's-default'; catLabelText = '已选'; }
+        else if (agg === 'denyAll') { catLabelClass = 's-deny'; catLabelText = '禁止'; }
+        else if (agg === 'all') { catLabelClass = 's-allow'; catLabelText = '允许'; }
+        else if (catInherit) { catLabelClass = 's-inherit'; }
+        var defaultBtnColor = catInherit ? '#4caf50' : 'var(--danger)';
+        var allowDot = (isGroupMode ? (agg === 'all' ? '●' : '○') : (agg === 'all' ? '●' : '○'));
+        var denyDot = (agg === 'denyAll' ? '●' : '○');
+        var defaultDot = (agg === 'denyAll' || agg === 'all' ? '○' : '●');
+        if (isGroupMode) { defaultDot = '○'; }
+        if (isGroupMode && agg === 'all') { defaultDot = '○'; }
 
         html += '<div class="perm-cat-header perm-item" data-type="category" data-id="' + catId + '" data-state="' + catState + '" style="display:flex;align-items:center;padding:4px 0;cursor:pointer" onclick="togglePermCategoryExpand(\'' + catId + '\',\'' + targetId + '\')">';
         html += '<span class="perm-cat-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">' + toggleIcon + '</span>';
-        html += triIndicator;
-        if (isGroupMode) {
-          html += '<span class="perm-cat-tri-btn" style="cursor:pointer;margin-right:6px;font-size:13px;user-select:none" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\')" title="全选/取消该分类下所有收藏">';
-          html += '<input type="checkbox" class="perm-cat-aggregate" data-cat-id="' + catId + '" ' + (catState === 'allow' ? 'checked' : '') + ' style="pointer-events:none;accent-color:var(--accent)">';
+        if (bms.length > 0) {
+          html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
+          html += '<span class="perm-tri-group">';
+          html += '<span class="perm-tri-btn' + (isGroupMode && agg === 'all' ? ' is-active' : '') + (!isGroupMode && agg === 'all' ? ' is-active' : '') + '" data-action="allow" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'allow\')" style="color:' + (isGroupMode ? (agg === 'all' ? 'var(--accent)' : 'var(--text-muted)') : (agg === 'all' ? 'var(--accent)' : 'var(--text-muted)')) + '"><span class="perm-dot">' + allowDot + '</span> 允许</span>';
+          html += '<span class="perm-tri-btn' + (agg === 'denyAll' ? ' is-active' : '') + '" data-action="deny" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'deny\')" style="color:' + (agg === 'denyAll' ? 'var(--danger)' : 'var(--text-muted)') + '"><span class="perm-dot">' + denyDot + '</span> 禁止</span>';
+          html += '<span class="perm-tri-btn' + ((agg !== 'denyAll' && agg !== 'all') || (isGroupMode && agg !== 'all') ? ' is-active' : '') + '" data-action="default" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'default\')" style="color:' + defaultBtnColor + '" title="' + (catInherit ? '有继承分组权限' : '无继承分组权限') + '"><span class="perm-dot">' + defaultDot + '</span> 默认</span>';
           html += '</span>';
-        } else {
-          if (bms.length > 0) {
-            var agg2 = catAggregate[cat.id] || 'none';
-            html += '<span class="perm-cat-tri-btn" style="cursor:pointer;margin-right:6px;font-size:13px;user-select:none" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\')" title="点击循环切换 默认→允许→禁止→默认">';
-            if (agg2 === 'denyAll') html += '<span style="color:var(--danger);opacity:1" title="全部禁止">✕</span>';
-            else if (agg2 === 'all') html += '<span style="color:var(--accent);opacity:1" title="全部允许">✔</span>';
-            else html += '<span style="color:var(--text-muted);opacity:0.3" title="默认/未继承">☐</span>';
-            html += '</span>';
-          }
         }
         html += '<span style="flex:1;font-size:13px;color:var(--text-primary);font-weight:500">📁 ' + catLabel + '</span>';
         html += '</div>';
@@ -4423,7 +4440,7 @@
     renderPermContentList(targetId);
   }
 
-  function toggleAllBmsInCat(catId, targetId) {
+  function toggleAllBmsInCat(catId, targetId, forceState) {
     var db = getDbSync();
     var allUsers = Object.keys(db.users);
     var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
@@ -4434,29 +4451,36 @@
     var leaderGroup = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
 
     if (isGroupMode) {
-      // 分组模式：获取该分类下所有书签，判断当前是否全部勾选
       var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
       if (!itemsEl) return;
       var checkboxes = itemsEl.querySelectorAll('.perm-checkbox');
       if (checkboxes.length === 0) return;
-      var allChecked = true;
-      checkboxes.forEach(function(cb) { if (!cb.checked) allChecked = false; });
-      // 切换：如果全选就全取消，否则全选
-      checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
-      // 更新分类行的 aggregate checkbox
-      updateCatAggregateCheckbox(catId);
+      if (forceState === 'allow') {
+        checkboxes.forEach(function(cb) { cb.checked = true; });
+      } else if (forceState === 'deny' || forceState === 'default') {
+        checkboxes.forEach(function(cb) { cb.checked = false; });
+      } else {
+        var allChecked = true;
+        checkboxes.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+        checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
+      }
+      updatePermCatHeaderLabel(catId, null);
     } else {
       var items = document.querySelectorAll('.perm-cat-items[data-cat-id="' + catId + '"] .perm-item');
       if (items.length === 0) return;
-      var allAllow = true, allDeny = true;
-      items.forEach(function(item) {
-        if (item.dataset.state !== 'allow') allAllow = false;
-        if (item.dataset.state !== 'deny') allDeny = false;
-      });
       var targetState;
-      if (allAllow) targetState = 'deny';
-      else if (allDeny) targetState = 'default';
-      else targetState = 'allow';
+      if (forceState) {
+        targetState = forceState;
+      } else {
+        var allAllow = true, allDeny = true;
+        items.forEach(function(item) {
+          if (item.dataset.state !== 'allow') allAllow = false;
+          if (item.dataset.state !== 'deny') allDeny = false;
+        });
+        if (allAllow) targetState = 'deny';
+        else if (allDeny) targetState = 'default';
+        else targetState = 'allow';
+      }
       items.forEach(function(item) {
         var id = item.dataset.id;
         var type = item.dataset.type || 'bookmark';
@@ -4475,43 +4499,81 @@
         }
       });
       updateCatTriForAccountMode(catId);
+      updatePermCatHeaderLabel(catId, targetId);
     }
   }
 
   function updateCatTriForAccountMode(catId) {
+    updatePermCatHeaderLabel(catId, null);
+  }
+
+  function updatePermCatHeaderLabel(catId, targetId) {
     var headerEl = document.querySelector('.perm-cat-header[data-id="' + catId + '"]');
     if (!headerEl) return;
-    var triBtn = headerEl.querySelector('.perm-cat-tri-btn');
-    if (!triBtn) return;
+    var stateLabel = headerEl.querySelector('.perm-state-label');
+    if (!stateLabel) return;
+    var triGroup = headerEl.querySelector('.perm-tri-group');
     var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
     if (!itemsEl) return;
     var items = itemsEl.querySelectorAll('.perm-item');
+    var isCheckboxMode = itemsEl.querySelector('.perm-checkbox') !== null;
     var allowCount = 0, denyCount = 0, total = items.length;
-    items.forEach(function(item) {
-      if (item.dataset.state === 'allow') allowCount++;
-      if (item.dataset.state === 'deny') denyCount++;
-    });
-    var innerSpan = triBtn.querySelector('span');
-    if (!innerSpan) return;
-    if (total === 0) {
-      innerSpan.textContent = '☐';
-      innerSpan.style.color = 'var(--text-muted)';
-      innerSpan.style.opacity = '0.3';
-    } else if (denyCount === total) {
-      innerSpan.textContent = '✕';
-      innerSpan.style.color = 'var(--danger)';
-      innerSpan.style.opacity = '1';
-      innerSpan.title = '全部禁止';
-    } else if (allowCount === total) {
-      innerSpan.textContent = '✔';
-      innerSpan.style.color = 'var(--accent)';
-      innerSpan.style.opacity = '1';
-      innerSpan.title = '全部允许';
+    var anyInherit = false;
+    if (isCheckboxMode) {
+      var checkboxes = itemsEl.querySelectorAll('.perm-checkbox');
+      total = checkboxes.length;
+      checkboxes.forEach(function(cb) {
+        if (cb.checked) allowCount++;
+        if (cb.dataset.inherited === '1') anyInherit = true;
+      });
+      denyCount = 0;
     } else {
-      innerSpan.textContent = '☐';
-      innerSpan.style.color = 'var(--text-muted)';
-      innerSpan.style.opacity = '0.3';
-      innerSpan.title = '部分/默认';
+      var inheritCount = 0;
+      items.forEach(function(item) {
+        if (item.dataset.state === 'allow') allowCount++;
+        if (item.dataset.state === 'deny') denyCount++;
+        if (item.dataset.state === 'inherit') inheritCount++;
+      });
+      anyInherit = inheritCount > 0;
+    }
+    var agg;
+    if (isCheckboxMode) {
+      if (allowCount === total && total > 0) agg = 'all';
+      else if (allowCount === 0 && total > 0) agg = 'other';
+      else agg = 'other';
+    } else {
+      if (denyCount === total && total > 0) agg = 'denyAll';
+      else if (allowCount === total && total > 0) agg = 'all';
+      else agg = 'other';
+    }
+
+    if (agg === 'all') {
+      stateLabel.className = 'perm-state-label s-allow';
+      stateLabel.innerHTML = '<span class="perm-dot">●</span> 允许';
+    } else if (agg === 'denyAll') {
+      stateLabel.className = 'perm-state-label s-deny';
+      stateLabel.innerHTML = '<span class="perm-dot">●</span> 禁止';
+    } else {
+      stateLabel.className = 'perm-state-label ' + (anyInherit ? 's-inherit' : 's-default');
+      stateLabel.innerHTML = '<span class="perm-dot">●</span> 默认';
+    }
+
+    if (triGroup) {
+      var triBtns = triGroup.querySelectorAll('.perm-tri-btn');
+      var defaultBtnColor = anyInherit ? '#4caf50' : 'var(--danger)';
+      triBtns.forEach(function(t) { t.classList.remove('is-active'); });
+      triBtns.forEach(function(t) { t.style.color = 'var(--text-muted)'; });
+      triBtns.forEach(function(t) { var d = t.querySelector('.perm-dot'); if (d) d.textContent = '○'; });
+      if (agg === 'all') {
+        var allowBtn = triGroup.querySelector('[data-action="allow"]');
+        if (allowBtn) { allowBtn.classList.add('is-active'); allowBtn.style.color = 'var(--accent)'; var ad = allowBtn.querySelector('.perm-dot'); if (ad) ad.textContent = '●'; }
+      } else if (agg === 'denyAll') {
+        var denyBtn = triGroup.querySelector('[data-action="deny"]');
+        if (denyBtn) { denyBtn.classList.add('is-active'); denyBtn.style.color = 'var(--danger)'; var dd = denyBtn.querySelector('.perm-dot'); if (dd) dd.textContent = '●'; }
+      } else {
+        var defaultBtn = triGroup.querySelector('[data-action="default"]');
+        if (defaultBtn) { defaultBtn.classList.add('is-active'); defaultBtn.style.color = defaultBtnColor; var dtd = defaultBtn.querySelector('.perm-dot'); if (dtd) dtd.textContent = '●'; }
+      }
     }
   }
 
@@ -4547,7 +4609,7 @@
   // 监听书签 checkbox 变更，更新分类三态
   document.addEventListener('change', function(e) {
     if (e.target.classList.contains('perm-checkbox') && e.target.dataset.catId) {
-      updateCatAggregateCheckbox(e.target.dataset.catId);
+      updatePermCatHeaderLabel(e.target.dataset.catId, null);
     }
   });
 
@@ -4622,11 +4684,9 @@
   function selectAllPerms() {
     if (currentPermMode === 'group') {
       document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = true);
-      document.querySelectorAll('.perm-cat-aggregate').forEach(function(agg) {
-        var catId = agg.dataset.catId;
-        agg.checked = true;
-        agg.indeterminate = false;
-        updateCatTriIndicator(catId, true);
+      document.querySelectorAll('.perm-cat-items').forEach(function(el) {
+        var catId = el.dataset.catId;
+        if (catId) updatePermCatHeaderLabel(catId, null);
       });
     } else {
       document.querySelectorAll('.perm-item:not([data-state="allow"])').forEach(function(item) {
@@ -4643,11 +4703,9 @@
   function clearAllPerms() {
     if (currentPermMode === 'group') {
       document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
-      document.querySelectorAll('.perm-cat-aggregate').forEach(function(agg) {
-        var catId = agg.dataset.catId;
-        agg.checked = false;
-        agg.indeterminate = false;
-        updateCatTriIndicator(catId, false);
+      document.querySelectorAll('.perm-cat-items').forEach(function(el) {
+        var catId = el.dataset.catId;
+        if (catId) updatePermCatHeaderLabel(catId, null);
       });
     } else {
       document.querySelectorAll('.perm-item[data-state="allow"], .perm-item[data-state="deny"]').forEach(function(item) {
