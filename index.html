@@ -195,6 +195,17 @@
   }
   .nav-btn.danger:hover { color: var(--danger); }
 
+  .perm-state-label { font-size: 11px; padding: 2px 8px; border-radius: 3px; min-width: 44px; text-align: center; display: inline-block; cursor: default; }
+  .perm-state-label.s-allow { background: rgba(129,199,132,0.15); color: #81c784; }
+  .perm-state-label.s-deny { background: rgba(224,96,96,0.15); color: #e06060; }
+  .perm-state-label.s-inherit { background: rgba(76,175,80,0.12); color: #4caf50; }
+  .perm-state-label.s-default { background: rgba(224,96,96,0.12); color: #e06060; }
+  .perm-hover-actions { display: none; gap: 2px; align-items: center; }
+  .perm-hover-actions .nav-btn { font-size: 11px; padding: 1px 6px; border-radius: 3px; height: auto; width: auto; }
+  .perm-item:hover .perm-state-label { display: none; }
+  .perm-item:hover .perm-hover-actions { display: inline-flex; }
+  .perm-item { position: relative; }
+
   .category-item {
     cursor: grab;
   }
@@ -969,7 +980,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.13.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.14.0</div>
     </div>
   </aside>
 
@@ -1739,6 +1750,18 @@
     const finalBms = new Set([...groupBmIds, ...userAllowBmIds]);
     userDenyCatIds.forEach(id => finalCats.delete(id));
     userDenyBmIds.forEach(id => finalBms.delete(id));
+
+    var allCats = rootData.categories || [];
+    var allBms = rootData.bookmarks || [];
+    for (var ci = allCats.length - 1; ci >= 0; ci--) {
+      var cat = allCats[ci];
+      if (!finalCats.has(cat.id)) continue;
+      var catBms = allBms.filter(function(b) { return b.categoryId === cat.id; });
+      if (catBms.length === 0) continue;
+      var hasVisible = catBms.some(function(b) { return finalBms.has(b.id); });
+      if (!hasVisible) finalCats.delete(cat.id);
+    }
+
     return {
       categories: (rootData.categories || []).filter(c => finalCats.has(c.id)),
       bookmarks: (rootData.bookmarks || []).filter(b => finalBms.has(b.id))
@@ -4172,7 +4195,8 @@
       } else {
         const catList = userPerms.categories || [];
         const bmList = userPerms.bookmarks || [];
-        return itemType === 'category' ? (catList.includes(itemId) ? 'allow' : 'default') : (bmList.includes(itemId) ? 'allow' : 'default');
+        const isAllowed = itemType === 'category' ? catList.includes(itemId) : bmList.includes(itemId);
+        if (isAllowed) return 'allow';
       }
       const userGroups = db.users[targetId]?.groups || [];
       for (const gid of userGroups) {
@@ -4199,13 +4223,15 @@
     allowedCats.forEach(function(cat) {
       var bms = catBms[cat.id] || [];
       if (bms.length === 0) { catAggregate[cat.id] = 'none'; return; }
-      var allowCount = 0;
+      var allowCount = 0, denyCount = 0;
       bms.forEach(function(bm) {
         var s = getPermState(bm.id, 'bookmark');
         if (s === 'allow') allowCount++;
+        if (s === 'deny') denyCount++;
       });
-      if (allowCount === 0) catAggregate[cat.id] = 'none';
+      if (denyCount === bms.length) catAggregate[cat.id] = 'denyAll';
       else if (allowCount === bms.length) catAggregate[cat.id] = 'all';
+      else if (allowCount === 0 && denyCount === 0) catAggregate[cat.id] = 'none';
       else catAggregate[cat.id] = 'partial';
     });
     
@@ -4213,12 +4239,12 @@
     
     function renderItem(item, itemType, icon, label, catId) {
       const state = getPermState(item.id, itemType);
-      let stateLabel = '';
-      let stateColor = '';
-      if (state === 'inherit') { stateLabel = '继承'; stateColor = '#4caf50'; }
-      else if (state === 'allow') { stateLabel = '额外添加'; stateColor = '#81c784'; }
-      else if (state === 'deny') { stateLabel = '已禁止'; stateColor = '#e06060'; }
-      else { stateLabel = '未继承'; stateColor = 'var(--text-muted)'; }
+      let stateClass = '';
+      let stateText = '';
+      if (state === 'inherit') { stateClass = 's-inherit'; stateText = '◯ 默认'; }
+      else if (state === 'allow') { stateClass = 's-allow'; stateText = '✓ 允许'; }
+      else if (state === 'deny') { stateClass = 's-deny'; stateText = '✕ 禁止'; }
+      else { stateClass = 's-default'; stateText = '◯ 默认'; }
       
       let actionHtml = '';
       if (isGroupMode) {
@@ -4226,11 +4252,14 @@
         var catAttr = catId ? ' data-cat-id="' + catId + '"' : '';
         actionHtml = `<input type="checkbox" class="perm-checkbox" data-type="${itemType}" data-id="${item.id}" ${checked ? 'checked' : ''}${catAttr} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">`;
       } else {
-        actionHtml = `<span style="font-size:11px;color:${stateColor};min-width:50px">${stateLabel}</span>`;
+        actionHtml += '<span class="perm-state-label ' + stateClass + '">' + stateText + '</span>';
+        actionHtml += '<span class="perm-hover-actions">';
         if (!leaderGroup) {
-          actionHtml += `<button class="nav-btn" data-action="allow" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'allow' ? 'var(--accent)' : 'var(--text-muted)'};font-weight:${state === 'allow' ? '600' : 'normal'}">✓ 允许</button>`;
+          actionHtml += '<button class="nav-btn" data-action="allow" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + (state === 'allow' ? 'var(--accent)' : 'var(--text-muted)') + ';font-weight:' + (state === 'allow' ? '600' : 'normal') + '">✓ 允许</button>';
         }
-        actionHtml += `<button class="nav-btn" data-action="deny" data-type="${itemType}" data-id="${item.id}" onclick="togglePermState(this,'${itemType}','${item.id}')" style="color:${state === 'deny' ? 'var(--danger)' : 'var(--text-muted)'};font-weight:${state === 'deny' ? '600' : 'normal'}">✕ 禁止</button>`;
+        actionHtml += '<button class="nav-btn" data-action="deny" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:' + (state === 'deny' ? 'var(--danger)' : 'var(--text-muted)') + ';font-weight:' + (state === 'deny' ? '600' : 'normal') + '">✕ 禁止</button>';
+        actionHtml += '<button class="nav-btn" data-action="default" data-type="' + itemType + '" data-id="' + item.id + '" onclick="togglePermState(this,\'' + itemType + '\',\'' + item.id + '\')" style="color:var(--text-muted)">◯ 默认</button>';
+        actionHtml += '</span>';
       }
       
       return `<div class="perm-item" data-type="${itemType}" data-id="${item.id}" data-state="${state}"${catId ? ' data-cat-id="' + catId + '"' : ''} style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:6px">
@@ -4294,17 +4323,13 @@
           html += '<input type="checkbox" class="perm-cat-aggregate" data-cat-id="' + catId + '" ' + (catState === 'allow' ? 'checked' : '') + ' style="pointer-events:none;accent-color:var(--accent)">';
           html += '</span>';
         } else {
-          html += '<span style="font-size:11px;color:' + (function(){var cs=getPermState(cat.id,'category');if(cs==='inherit')return'#4caf50';else if(cs==='allow')return'#81c784';else if(cs==='deny')return'#e06060';else return'var(--text-muted)';})() + ';min-width:50px">' + (function(){var cs=getPermState(cat.id,'category');if(cs==='inherit')return'继承';else if(cs==='allow')return'额外添加';else if(cs==='deny')return'已禁止';else return'未继承';})() + '</span>';
-          if (!leaderGroup) {
-            html += '<button class="nav-btn" data-action="allow" data-type="category" data-id="' + cat.id + '" onclick="event.stopPropagation();togglePermState(this,\'category\',\'' + cat.id + '\')" style="color:' + (catState === 'allow' ? 'var(--accent)' : 'var(--text-muted)') + ';font-weight:' + (catState === 'allow' ? '600' : 'normal') + '">✓ 允许</button>';
-          }
-          html += '<button class="nav-btn" data-action="deny" data-type="category" data-id="' + cat.id + '" onclick="event.stopPropagation();togglePermState(this,\'category\',\'' + cat.id + '\')" style="color:' + (catState === 'deny' ? 'var(--danger)' : 'var(--text-muted)') + ';font-weight:' + (catState === 'deny' ? '600' : 'normal') + '">✕ 禁止</button>';
-          // Aggregate bookmark indicator for account mode
           if (bms.length > 0) {
             var agg2 = catAggregate[cat.id] || 'none';
-            if (agg2 === 'all') html += '<span style="font-size:10px;color:var(--accent);margin-left:4px" title="该分类下收藏全部允许">✔</span>';
-            else if (agg2 === 'partial') html += '<span style="font-size:10px;color:var(--text-muted);margin-left:4px" title="该分类下收藏部分允许">▬</span>';
-            else html += '<span style="font-size:10px;color:var(--text-muted);margin-left:4px;opacity:0.3" title="该分类下收藏全未允许">☐</span>';
+            html += '<span class="perm-cat-tri-btn" style="cursor:pointer;margin-right:6px;font-size:13px;user-select:none" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\')" title="点击循环切换 默认→允许→禁止→默认">';
+            if (agg2 === 'denyAll') html += '<span style="color:var(--danger);opacity:1" title="全部禁止">✕</span>';
+            else if (agg2 === 'all') html += '<span style="color:var(--accent);opacity:1" title="全部允许">✔</span>';
+            else html += '<span style="color:var(--text-muted);opacity:0.3" title="默认/未继承">☐</span>';
+            html += '</span>';
           }
         }
         html += '<span style="flex:1;font-size:13px;color:var(--text-primary);font-weight:500">📁 ' + catLabel + '</span>';
@@ -4394,65 +4419,72 @@
       // 更新分类行的 aggregate checkbox
       updateCatAggregateCheckbox(catId);
     } else {
-      // 按账号模式：批量 toggle bookmark 的 allow/deny
-      var catBms = [];
-      var allowedBms = rootData.bookmarks || [];
-      var allCats = rootData.categories || [];
-      allowedBms.forEach(function(bm) {
-        if (bm.categoryId === catId) catBms.push(bm);
+      var items = document.querySelectorAll('.perm-cat-items[data-cat-id="' + catId + '"] .perm-item');
+      if (items.length === 0) return;
+      var allAllow = true, allDeny = true;
+      items.forEach(function(item) {
+        if (item.dataset.state !== 'allow') allAllow = false;
+        if (item.dataset.state !== 'deny') allDeny = false;
       });
-      if (catBms.length === 0) return;
-      var allAllowed = true;
-      catBms.forEach(function(bm) {
-        var s = (function() {
-          var up = perms;
-          if (up.allow || up.deny) {
-            var alB = up.allow?.bookmarks || [];
-            var dlB = up.deny?.bookmarks || [];
-            if (dlB.includes(bm.id)) return 'deny';
-            if (alB.includes(bm.id)) return 'allow';
-          } else {
-            var bL = up.bookmarks || [];
-            if (bL.includes(bm.id)) return 'allow';
-          }
-          return 'default';
-        })();
-        if (s !== 'allow') allAllowed = false;
+      var targetState;
+      if (allAllow) targetState = 'deny';
+      else if (allDeny) targetState = 'default';
+      else targetState = 'allow';
+      items.forEach(function(item) {
+        var id = item.dataset.id;
+        var type = item.dataset.type || 'bookmark';
+        var currentState = item.dataset.state;
+        var allowBtn = item.querySelector('[data-action="allow"]');
+        var denyBtn = item.querySelector('[data-action="deny"]');
+        if (targetState === 'allow') {
+          if (currentState === 'deny' && denyBtn) togglePermState(denyBtn, type, id);
+          if (item.dataset.state !== 'allow' && allowBtn) togglePermState(allowBtn, type, id);
+        } else if (targetState === 'deny') {
+          if (currentState === 'allow' && allowBtn) togglePermState(allowBtn, type, id);
+          if (item.dataset.state !== 'deny' && denyBtn) togglePermState(denyBtn, type, id);
+        } else {
+          if (currentState === 'allow' && allowBtn) togglePermState(allowBtn, type, id);
+          else if (currentState === 'deny' && denyBtn) togglePermState(denyBtn, type, id);
+        }
       });
-      // 全部
-      var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
-      if (itemsEl) {
-        var todoStates = itemsEl.querySelectorAll('.perm-item');
-        todoStates.forEach(function(item) {
-          var id = item.dataset.id;
-          if (allAllowed) {
-            // 全部取消允许
-            if (item.dataset.state === 'allow') {
-              item.dataset.state = 'default';
-              var allowBtn = item.querySelector('[data-action="allow"]');
-              if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
-              var stLbl = item.querySelector('span');
-              if (stLbl && stLbl.textContent.match(/额外添加/)) { stLbl.textContent = '未继承'; stLbl.style.color = 'var(--text-muted)'; }
-            }
-          } else {
-            // 全部允许（先取消deny）
-            if (item.dataset.state === 'deny') {
-              item.dataset.state = 'default';
-              var denyBtn = item.querySelector('[data-action="deny"]');
-              if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
-              var stLbl = item.querySelector('span');
-              if (stLbl && stLbl.textContent.match(/已禁止/)) { stLbl.textContent = '未继承'; stLbl.style.color = 'var(--text-muted)'; }
-            }
-            if (item.dataset.state !== 'allow') {
-              item.dataset.state = 'allow';
-              var allowBtn = item.querySelector('[data-action="allow"]');
-              if (allowBtn) { allowBtn.style.color = 'var(--accent)'; allowBtn.style.fontWeight = '600'; }
-              var stLbl2 = item.querySelector('span');
-              if (stLbl2 && (stLbl2.textContent.match(/未继承|继承/) || stLbl2.textContent === '')) { stLbl2.textContent = '额外添加'; stLbl2.style.color = '#81c784'; }
-            }
-          }
-        });
-      }
+      updateCatTriForAccountMode(catId);
+    }
+  }
+
+  function updateCatTriForAccountMode(catId) {
+    var headerEl = document.querySelector('.perm-cat-header[data-id="' + catId + '"]');
+    if (!headerEl) return;
+    var triBtn = headerEl.querySelector('.perm-cat-tri-btn');
+    if (!triBtn) return;
+    var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
+    if (!itemsEl) return;
+    var items = itemsEl.querySelectorAll('.perm-item');
+    var allowCount = 0, denyCount = 0, total = items.length;
+    items.forEach(function(item) {
+      if (item.dataset.state === 'allow') allowCount++;
+      if (item.dataset.state === 'deny') denyCount++;
+    });
+    var innerSpan = triBtn.querySelector('span');
+    if (!innerSpan) return;
+    if (total === 0) {
+      innerSpan.textContent = '☐';
+      innerSpan.style.color = 'var(--text-muted)';
+      innerSpan.style.opacity = '0.3';
+    } else if (denyCount === total) {
+      innerSpan.textContent = '✕';
+      innerSpan.style.color = 'var(--danger)';
+      innerSpan.style.opacity = '1';
+      innerSpan.title = '全部禁止';
+    } else if (allowCount === total) {
+      innerSpan.textContent = '✔';
+      innerSpan.style.color = 'var(--accent)';
+      innerSpan.style.opacity = '1';
+      innerSpan.title = '全部允许';
+    } else {
+      innerSpan.textContent = '☐';
+      innerSpan.style.color = 'var(--text-muted)';
+      innerSpan.style.opacity = '0.3';
+      innerSpan.title = '部分/默认';
     }
   }
 
@@ -4498,55 +4530,65 @@
     const currentState = parent.dataset.state;
     let newState;
     if (action === 'allow') {
-      newState = currentState === 'allow' ? 'default' : 'allow';
+      newState = (currentState === 'allow') ? 'default' : 'allow';
+    } else if (action === 'deny') {
+      newState = (currentState === 'deny') ? 'default' : 'deny';
     } else {
-      newState = currentState === 'deny' ? 'default' : 'deny';
+      newState = (currentState === 'default' || currentState === 'inherit') ? currentState : 'default';
     }
-    if (newState === 'allow' && currentState === 'deny') {
-      const denyBtn = parent.querySelector('[data-action="deny"]');
-      if (denyBtn) denyBtn.style.color = 'var(--text-muted)';
-      if (denyBtn) denyBtn.style.fontWeight = 'normal';
-    }
-    if (newState === 'deny' && currentState === 'allow') {
-      const allowBtn = parent.querySelector('[data-action="allow"]');
-      if (allowBtn) allowBtn.style.color = 'var(--text-muted)';
-      if (allowBtn) allowBtn.style.fontWeight = 'normal';
-    }
+    if (newState === currentState) return;
+
     parent.dataset.state = newState;
+
+    var allowBtn = parent.querySelector('[data-action="allow"]');
+    var denyBtn = parent.querySelector('[data-action="deny"]');
+    var defaultBtn = parent.querySelector('[data-action="default"]');
     if (newState === 'allow') {
-      btn.style.color = 'var(--accent)';
-      btn.style.fontWeight = '600';
-      const denyBtn = parent.querySelector('[data-action="deny"]');
+      if (allowBtn) { allowBtn.style.color = 'var(--accent)'; allowBtn.style.fontWeight = '600'; }
       if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
+      if (defaultBtn) { defaultBtn.style.color = 'var(--text-muted)'; defaultBtn.style.fontWeight = 'normal'; }
     } else if (newState === 'deny') {
-      btn.style.color = 'var(--danger)';
-      btn.style.fontWeight = '600';
-      const allowBtn = parent.querySelector('[data-action="allow"]');
       if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
+      if (denyBtn) { denyBtn.style.color = 'var(--danger)'; denyBtn.style.fontWeight = '600'; }
+      if (defaultBtn) { defaultBtn.style.color = 'var(--text-muted)'; defaultBtn.style.fontWeight = 'normal'; }
     } else {
-      btn.style.color = 'var(--text-muted)';
-      btn.style.fontWeight = 'normal';
+      if (allowBtn) { allowBtn.style.color = 'var(--text-muted)'; allowBtn.style.fontWeight = 'normal'; }
+      if (denyBtn) { denyBtn.style.color = 'var(--text-muted)'; denyBtn.style.fontWeight = 'normal'; }
+      if (defaultBtn) { defaultBtn.style.color = 'var(--text-muted)'; defaultBtn.style.fontWeight = 'normal'; }
     }
-    const stateLabel = parent.querySelector('span:first-child');
-    if (stateLabel && stateLabel.textContent.match(/继承|额外添加|已禁止|未继承/)) {
-      if (newState === 'allow') { stateLabel.textContent = '额外添加'; stateLabel.style.color = '#81c784'; }
-      else if (newState === 'deny') { stateLabel.textContent = '已禁止'; stateLabel.style.color = '#e06060'; }
-      else {
-        const db = getDbSync();
-        const targetId = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : (leaderGroupForMgr ? currentPermTarget : document.getElementById('permAccountSelect').value);
-        const userGroups = db.users[targetId]?.groups || [];
-        const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
-        const rootData = rootUser ? db.userData[rootUser] : {};
-        let inherited = false;
-        for (const gid of userGroups) {
-          const gp = rootData.permissions?.['group:' + gid];
+
+    var stateLabel = parent.querySelector('.perm-state-label');
+    if (stateLabel) {
+      if (newState === 'allow') {
+        stateLabel.className = 'perm-state-label s-allow';
+        stateLabel.textContent = '✓ 允许';
+      } else if (newState === 'deny') {
+        stateLabel.className = 'perm-state-label s-deny';
+        stateLabel.textContent = '✕ 禁止';
+      } else {
+        var db = getDbSync();
+        var targetId = currentPermMode === 'group' ? 'group:' + selectedPermGroupId : (leaderGroupForMgr ? currentPermTarget : document.getElementById('permAccountSelect').value);
+        var userGroups = db.users[targetId]?.groups || [];
+        var rootUser2 = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+        var rootData2 = rootUser2 ? db.userData[rootUser2] : {};
+        var inherited = false;
+        for (var gi = 0; gi < userGroups.length; gi++) {
+          var gp = rootData2.permissions?.['group:' + userGroups[gi]];
           if (gp) {
-            const gList = itemType === 'category' ? (gp.categories || []) : (gp.bookmarks || []);
+            var gList = itemType === 'category' ? (gp.categories || []) : (gp.bookmarks || []);
             if (gList.includes(itemId)) { inherited = true; break; }
           }
         }
-        stateLabel.textContent = inherited ? '继承' : '未继承';
-        stateLabel.style.color = inherited ? '#4caf50' : 'var(--text-muted)';
+        stateLabel.className = 'perm-state-label ' + (inherited ? 's-inherit' : 's-default');
+        stateLabel.textContent = '◯ 默认';
+      }
+    }
+
+    if (itemType === 'bookmark' && currentPermMode !== 'group') {
+      var parentCatEl = parent.closest('.perm-cat-items');
+      if (parentCatEl) {
+        var catId = parentCatEl.dataset.catId;
+        if (catId) updateCatTriForAccountMode(catId);
       }
     }
   }
@@ -4561,11 +4603,13 @@
         updateCatTriIndicator(catId, true);
       });
     } else {
-      document.querySelectorAll('.perm-item[data-state="default"], .perm-item[data-state="inherit"]').forEach(item => {
-        togglePermState(item.querySelector('[data-action="allow"]'), item.dataset.type, item.dataset.id);
+      document.querySelectorAll('.perm-item:not([data-state="allow"])').forEach(function(item) {
+        var allowBtn = item.querySelector('[data-action="allow"]');
+        if (allowBtn) togglePermState(allowBtn, item.dataset.type, item.dataset.id);
       });
-      document.querySelectorAll('.perm-item[data-state="deny"]').forEach(item => {
-        togglePermState(item.querySelector('[data-action="deny"]'), item.dataset.type, item.dataset.id);
+      document.querySelectorAll('.perm-cat-items').forEach(function(el) {
+        var catId = el.dataset.catId;
+        if (catId) updateCatTriForAccountMode(catId);
       });
     }
   }
@@ -4580,13 +4624,13 @@
         updateCatTriIndicator(catId, false);
       });
     } else {
-      document.querySelectorAll('.perm-item[data-state="allow"]').forEach(item => {
-        togglePermState(item.querySelector('[data-action="allow"]'), item.dataset.type, item.dataset.id);
+      document.querySelectorAll('.perm-item[data-state="allow"], .perm-item[data-state="deny"]').forEach(function(item) {
+        var defaultBtn = item.querySelector('[data-action="default"]');
+        if (defaultBtn) togglePermState(defaultBtn, item.dataset.type, item.dataset.id);
       });
-      document.querySelectorAll('.perm-item[data-state="inherit"], .perm-item[data-state="default"]').forEach(item => {
-        if (item.dataset.state === 'inherit' || item.dataset.state === 'default') {
-          togglePermState(item.querySelector('[data-action="deny"]'), item.dataset.type, item.dataset.id);
-        }
+      document.querySelectorAll('.perm-cat-items').forEach(function(el) {
+        var catId = el.dataset.catId;
+        if (catId) updateCatTriForAccountMode(catId);
       });
     }
   }
