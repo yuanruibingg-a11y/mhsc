@@ -969,7 +969,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.12.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.12.2</div>
     </div>
   </aside>
 
@@ -3459,11 +3459,9 @@
 
   function openGroupPermFromMgr(groupId) {
     closeModal('userMgrModal');
-    openPermMgr();
-    setTimeout(function() {
-      switchPermMode('group');
+    openPermMgr(null, 'group').then(function() {
       selectPermGroup(groupId);
-    }, 100);
+    });
   }
 
   // 点击空白处关闭下拉菜单
@@ -3799,7 +3797,7 @@
   let leaderGroupForMgr = null;
   let leaderMembersForMgr = [];
 
-  async function openPermMgr(username) {
+  async function openPermMgr(username, initialMode) {
     cachedDb = null;
     await getDb();
     
@@ -3808,8 +3806,9 @@
     leaderGroupForMgr = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
     const isLeader = !!leaderGroupForMgr;
     
-    currentPermMode = 'user';
-    switchPermMode('user');
+    var mode = initialMode || 'user';
+    currentPermMode = mode;
+    switchPermMode(mode);
     
     const select = document.getElementById('permAccountSelect');
     const tabBar = document.getElementById('permTabBar');
@@ -3852,17 +3851,19 @@
       tabBar.style.display = '';
       memberListView.style.display = 'none';
       backBtnArea.style.display = 'none';
-      permUserMode.style.display = '';
-      permActionBtns.style.display = '';
-      const users = getUserList();
-      select.innerHTML = users.map(u => {
-        let roleLabel = '';
-        if (u.role === 'root') roleLabel = ' (超级)';
-        else if (u.role === 'admin') roleLabel = ' (管理员)';
-        return '<option value="' + u.username + '" ' + (u.username === username ? 'selected' : '') + '>' + u.username + roleLabel + '</option>';
-      }).join('');
-      currentPermTarget = username;
-      if (currentPermTarget) loadAccountPermissions(currentPermTarget);
+      if (currentPermMode === 'user') {
+        permUserMode.style.display = '';
+        permActionBtns.style.display = '';
+        const users = getUserList();
+        select.innerHTML = users.map(u => {
+          let roleLabel = '';
+          if (u.role === 'root') roleLabel = ' (超级)';
+          else if (u.role === 'admin') roleLabel = ' (管理员)';
+          return '<option value="' + u.username + '" ' + (u.username === username ? 'selected' : '') + '>' + u.username + roleLabel + '</option>';
+        }).join('');
+        currentPermTarget = username;
+        if (currentPermTarget) loadAccountPermissions(currentPermTarget);
+      }
     }
     
     closeModal('userMgrModal');
