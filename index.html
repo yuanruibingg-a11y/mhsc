@@ -889,7 +889,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.3</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.4</div>
     </div>
   </aside>
 
@@ -3455,11 +3455,21 @@
     }
   }
 
-  function deleteUser(username) {
+  async function deleteUser(username) {
     if (!confirm(`确定要删除用户「${username}」吗？此操作不可恢复。`)) return;
     const db = getDbSync();
     delete db.users[username];
+    if (db.userData[username]) delete db.userData[username];
     saveDb(db);
+    if (sbClient) {
+      try {
+        await sbClient.from('users').delete().eq('username', username);
+        await sbClient.from('user_data').delete().eq('username', username);
+        console.log('🗑️ 已从云端删除用户:', username);
+      } catch(e) {
+        console.error('❌ 云端删除失败:', username, e);
+      }
+    }
     renderUserList();
     showToast(`已删除 ${username}`);
   }
@@ -3477,15 +3487,6 @@
       }
       showToast(`已更新 ${username} 角色`);
     }
-  }
-
-  function deleteUser(username) {
-    if (!confirm(`确定要删除用户「${username}」吗？此操作不可恢复。`)) return;
-    const db = getDbSync();
-    delete db.users[username];
-    saveDb(db);
-    renderUserList();
-    showToast(`已删除 ${username}`);
   }
 
   function openAddUserModal() {
