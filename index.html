@@ -889,7 +889,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.4</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.5</div>
     </div>
   </aside>
 
@@ -3357,10 +3357,10 @@
       if (u.role === 'user' || (currentUserRole === 'root' && u.role === 'admin')) {
         actionText += `<button class="nav-btn" onclick="openPermMgr('${u.username}')" title="权限管理">🔐</button>`;
       }
-      if (u.username !== state.currentUser && (currentUserRole === 'root' || currentUserRole === 'admin')) {
+      if (u.username !== state.currentUser && u.role !== 'root' && (currentUserRole === 'root' || currentUserRole === 'admin')) {
         actionText += `<button class="nav-btn" onclick="openResetUserPwdModal('${u.username}')" title="修改密码">🔑</button>`;
       }
-      if (u.username !== state.currentUser) {
+      if (u.username !== state.currentUser && (currentUserRole === 'root' || u.role !== 'root')) {
         actionText += `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
       }
       
