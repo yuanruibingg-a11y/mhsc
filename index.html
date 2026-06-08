@@ -823,6 +823,24 @@
   body:not(.editing) .view-add-btn { display: none !important; }
   body:not(.editing) .view-remove-btn { display: none !important; }
 
+  .group-list-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+  .group-list-item:hover {
+    background: var(--bg-surface);
+  }
+  .group-list-item.selected {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
   .edit-toggle-btn {
     width: 36px; height: 36px;
     border: 1px solid var(--border);
@@ -889,7 +907,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.11.5</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.12.0</div>
     </div>
   </aside>
 
@@ -1139,24 +1157,40 @@
 </div>
 
 <div class="modal-overlay" id="userMgrModal">
-  <div class="modal" style="max-width:550px">
-    <div class="modal-title">用户管理</div>
+  <div class="modal" style="max-width:750px">
+    <div class="modal-title">用户及权限</div>
     
-    <!-- 搜索和筛选 -->
+    <!-- 搜索和操作按钮 -->
     <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
       <div style="flex:1;display:flex;align-items:center;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px">
         <span style="color:var(--text-muted);font-size:12px;margin-right:6px">🔍</span>
         <input type="text" id="userSearchInput" placeholder="搜索账号..." style="flex:1;background:none;border:none;color:var(--text-primary);font-size:12px;outline:none" oninput="renderUserList()">
       </div>
+      <button class="btn btn-sm" onclick="openAddGroupModal()">📁 新建分组</button>
+      <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ 添加用户</button>
     </div>
     
-    <div id="userListArea" style="margin-bottom:16px;max-height:280px;overflow-y:auto"></div>
-    <div class="form-actions" style="justify-content:space-between">
-      <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ 添加用户</button>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-sm" onclick="openChangePasswordModal()">🔑 修改密码</button>
-        <button class="btn btn-cancel" onclick="closeModal('userMgrModal')">关闭</button>
+    <!-- 左右分栏布局 -->
+    <div style="display:flex;gap:12px;height:400px">
+      <!-- 左侧分组列表 -->
+      <div style="width:200px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);display:flex;flex-direction:column">
+        <div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);font-weight:500">分组管理</div>
+        <div id="groupListArea" style="flex:1;overflow-y:auto;padding:4px"></div>
       </div>
+      
+      <!-- 右侧用户列表 -->
+      <div style="flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);display:flex;flex-direction:column">
+        <div id="userListHeader" style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12px;color:var(--text-muted);font-weight:500" id="userListTitle">全部用户</span>
+          <span style="font-size:11px;color:var(--text-muted)" id="userCount">0 个用户</span>
+        </div>
+        <div id="userListArea" style="flex:1;overflow-y:auto;padding:4px"></div>
+      </div>
+    </div>
+    
+    <div class="form-actions" style="justify-content:flex-end">
+      <button class="btn btn-sm" onclick="openChangePasswordModal()">🔑 修改密码</button>
+      <button class="btn btn-cancel" onclick="closeModal('userMgrModal')">关闭</button>
     </div>
   </div>
 </div>
@@ -3289,10 +3323,51 @@
     showToast('注册成功，请登录');
   }
 
+  let selectedGroupId = null;
+
   function openUserManager() {
+    selectedGroupId = null;
+    renderGroupList();
     renderUserList();
     document.getElementById('userSearchInput').value = '';
     document.getElementById('userMgrModal').classList.add('show');
+  }
+
+  function renderGroupList() {
+    const area = document.getElementById('groupListArea');
+    const db = getDbSync();
+    const allUsersKeys = Object.keys(db.users);
+    const rootUser = allUsersKeys.find(u => db.users[u]?.role === 'root');
+    const accountGroups = (rootUser && db.userData[rootUser]?.accountGroups) || [];
+    
+    let html = `
+      <div class="group-list-item ${selectedGroupId === null ? 'selected' : ''}" onclick="selectGroup(null)">
+        <span>📋 全部用户</span>
+        <span style="font-size:11px;color:var(--text-muted)">(${Object.keys(db.users).length})</span>
+      </div>
+    `;
+    
+    if (accountGroups.length === 0) {
+      html += `<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:12px">暂无分组</div>`;
+    } else {
+      accountGroups.forEach(group => {
+        const userCount = Object.values(db.users).filter(u => (u.groups || []).includes(group.id)).length;
+        html += `
+          <div class="group-list-item ${selectedGroupId === group.id ? 'selected' : ''}" onclick="selectGroup('${group.id}')">
+            <span>👥 ${group.name}</span>
+            <span style="font-size:11px;color:var(--text-muted)">(${userCount})</span>
+          </div>
+        `;
+      });
+    }
+    
+    area.innerHTML = html;
+  }
+
+  function selectGroup(groupId) {
+    selectedGroupId = groupId;
+    renderGroupList();
+    renderUserList();
   }
 
   function renderUserList() {
@@ -3309,16 +3384,20 @@
       if (searchText && !u.username.toLowerCase().includes(searchText)) {
         return false;
       }
+      if (selectedGroupId) {
+        const userGroups = db.users[u.username]?.groups || [];
+        return userGroups.includes(selectedGroupId);
+      }
       return true;
     });
     
     const currentUserRole = state.currentUser && db.users[state.currentUser]?.role;
     
     let html = `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
-        <span style="flex:2.5">账号</span>
-        <span style="flex:0.8;text-align:center">角色</span>
-        <span style="flex:1.2;text-align:center">操作</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
+        <span style="flex:3">账号</span>
+        <span style="flex:1;text-align:center">角色</span>
+        <span style="flex:1.5;text-align:center">操作</span>
       </div>
     `;
     users.forEach(u => {
@@ -3360,16 +3439,16 @@
       if (u.username !== state.currentUser && u.role !== 'root' && (currentUserRole === 'root' || currentUserRole === 'admin')) {
         actionText += `<button class="nav-btn" onclick="openResetUserPwdModal('${u.username}')" title="修改密码">🔑</button>`;
       }
-      if (u.username !== state.currentUser && (currentUserRole === 'root' || u.role !== 'root')) {
+      if (u.username !== state.currentUser && u.role !== 'root') {
         actionText += `<button class="nav-btn danger" onclick="deleteUser('${u.username}')" title="删除用户">✕</button>`;
       }
       
       html += `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px">
-          <span style="flex:2.5;font-weight:${fontWeight};color:${userColor}">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px">
+          <span style="flex:3;font-weight:${fontWeight};color:${userColor}">
             ${u.username} ${extraText}${groupTags ? '<br>' : ''}<span style="display:inline-block;margin-top:${groupTags ? '2px' : '0'}">${groupTags}</span>
           </span>
-          <span style="flex:0.8;text-align:center">
+          <span style="flex:1;text-align:center">
             ${noDropdown
               ? `<span style="font-size:12px;color:${isRoot ? 'var(--accent)' : 'var(--text-primary)'};font-weight:600">${isRoot ? '超级' : '管理'}</span>`
               : `<select onchange="changeUserRole('${u.username}',this.value)" style="background:${selectBg};border:1px solid ${selectBorder};border-radius:4px;color:${selectColor};font-size:12px;padding:2px 6px;cursor:pointer">
@@ -3378,18 +3457,27 @@
               </select>`
             }
           </span>
-          <span style="flex:1.2;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
+          <span style="flex:1.5;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
         </div>
       `;
     });
     
     if (users.length === 0) {
-      html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">未找到匹配的用户</div>`;
-    } else {
-      html += `<div style="color:var(--text-muted);font-size:11px;padding-top:8px">共 ${users.length} 个账号</div>`;
+      html += `<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:40px">未找到匹配的用户</div>`;
     }
     
     area.innerHTML = html;
+    
+    // 更新标题和计数
+    const titleEl = document.getElementById('userListTitle');
+    const countEl = document.getElementById('userCount');
+    if (selectedGroupId) {
+      const group = accountGroups.find(g => g.id === selectedGroupId);
+      titleEl.textContent = group ? group.name : '未知分组';
+    } else {
+      titleEl.textContent = '全部用户';
+    }
+    countEl.textContent = `${users.length} 个用户`;
   }
 
   let currentUserGroupEditTarget = null;
