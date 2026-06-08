@@ -832,6 +832,7 @@
     justify-content: space-between;
     align-items: center;
     font-size: 13px;
+    position: relative;
   }
   .group-list-item:hover {
     background: var(--bg-surface);
@@ -839,6 +840,67 @@
   .group-list-item.selected {
     background: var(--accent-dim);
     color: var(--accent);
+  }
+
+  .group-menu-btn {
+    width: 24px; height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    visibility: hidden;
+    transition: all 0.15s;
+  }
+  .group-list-item:hover .group-menu-btn {
+    visibility: visible;
+  }
+  .group-menu-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  .group-dropdown {
+    position: absolute;
+    right: 0; top: 100%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    z-index: 50;
+    display: none;
+    min-width: 130px;
+    padding: 4px 0;
+  }
+  .group-dropdown.show {
+    display: block;
+  }
+
+  .group-dropdown-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .group-dropdown-item:hover {
+    background: var(--bg-surface);
+  }
+  .group-dropdown-item.disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .group-dropdown-item.disabled:hover {
+    background: transparent;
   }
 
   .edit-toggle-btn {
@@ -907,7 +969,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.12.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.12.1</div>
     </div>
   </aside>
 
@@ -3339,6 +3401,8 @@
     const allUsersKeys = Object.keys(db.users);
     const rootUser = allUsersKeys.find(u => db.users[u]?.role === 'root');
     const accountGroups = (rootUser && db.userData[rootUser]?.accountGroups) || [];
+    const currentRole = state.currentUser && db.users[state.currentUser]?.role;
+    const isRootOrAdmin = currentRole === 'root' || currentRole === 'admin';
     
     let html = `
       <div class="group-list-item ${selectedGroupId === null ? 'selected' : ''}" onclick="selectGroup(null)">
@@ -3356,6 +3420,15 @@
           <div class="group-list-item ${selectedGroupId === group.id ? 'selected' : ''}" onclick="selectGroup('${group.id}')">
             <span>👥 ${group.name}</span>
             <span style="font-size:11px;color:var(--text-muted)">(${userCount})</span>
+            ${isRootOrAdmin ? `
+            <span style="position:relative">
+              <button class="group-menu-btn" onclick="event.stopPropagation();toggleGroupMenu(event,'${group.id}')">⋮</button>
+              <div class="group-dropdown" id="groupDropdown_${group.id}">
+                <div class="group-dropdown-item" onclick="event.stopPropagation();toggleGroupMenu(event,'${group.id}');openGroupPermFromMgr('${group.id}')">🔐 权限编辑</div>
+                <div class="group-dropdown-item disabled">📋 操作日志</div>
+              </div>
+            </span>
+            ` : ''}
           </div>
         `;
       });
@@ -3363,6 +3436,46 @@
     
     area.innerHTML = html;
   }
+
+  let activeGroupMenuId = null;
+
+  function toggleGroupMenu(event, groupId) {
+    event.stopPropagation();
+    if (activeGroupMenuId && activeGroupMenuId !== groupId) {
+      const prev = document.getElementById('groupDropdown_' + activeGroupMenuId);
+      if (prev) prev.classList.remove('show');
+    }
+    const dropdown = document.getElementById('groupDropdown_' + groupId);
+    if (!dropdown) return;
+    const isOpen = dropdown.classList.contains('show');
+    if (isOpen) {
+      dropdown.classList.remove('show');
+      activeGroupMenuId = null;
+    } else {
+      dropdown.classList.add('show');
+      activeGroupMenuId = groupId;
+    }
+  }
+
+  function openGroupPermFromMgr(groupId) {
+    closeModal('userMgrModal');
+    openPermMgr();
+    setTimeout(function() {
+      switchPermMode('group');
+      selectPermGroup(groupId);
+    }, 100);
+  }
+
+  // 点击空白处关闭下拉菜单
+  document.addEventListener('click', function(e) {
+    if (activeGroupMenuId) {
+      const dropdown = document.getElementById('groupDropdown_' + activeGroupMenuId);
+      if (dropdown && !dropdown.contains(e.target) && !e.target.classList.contains('group-menu-btn')) {
+        dropdown.classList.remove('show');
+        activeGroupMenuId = null;
+      }
+    }
+  });
 
   function selectGroup(groupId) {
     selectedGroupId = groupId;
