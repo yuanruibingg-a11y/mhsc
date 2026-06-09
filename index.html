@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.8</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.9</div>
     </div>
   </aside>
 
@@ -5088,12 +5088,15 @@
     if (agg === 'all') {
       stateLabel.className = 'perm-state-label s-allow';
       stateLabel.innerHTML = '<span class="perm-dot">●</span> 允许';
+      headerEl.dataset.state = 'allow';
     } else if (agg === 'denyAll') {
       stateLabel.className = 'perm-state-label s-deny';
       stateLabel.innerHTML = '<span class="perm-dot">●</span> 禁止';
+      headerEl.dataset.state = 'deny';
     } else {
       stateLabel.className = 'perm-state-label ' + (anyInherit ? 's-inherit' : 's-default');
       stateLabel.innerHTML = '<span class="perm-dot">●</span> 默认';
+      headerEl.dataset.state = 'default';
     }
 
     if (triGroup) {
@@ -5231,6 +5234,9 @@
       document.querySelectorAll('.perm-item:not([data-state="allow"])').forEach(function(item) {
         var allowBtn = item.querySelector('[data-action="allow"]');
         if (allowBtn) togglePermState(allowBtn, item.dataset.type, item.dataset.id);
+      });
+      document.querySelectorAll('.perm-cat-header.perm-item').forEach(function(hdr) {
+        hdr.dataset.state = 'allow';
       });
       document.querySelectorAll('.perm-cat-items').forEach(function(el) {
         var catId = el.dataset.catId;
