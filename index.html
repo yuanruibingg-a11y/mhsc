@@ -983,7 +983,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.3</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.5</div>
     </div>
   </aside>
 
@@ -1687,16 +1687,19 @@
       // 将 enabled 状态存入 root 的 user_data（Supabase users 表没有 enabled 列）
       const rootU = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
       if (rootU) {
-        if (!db.userData[rootU]) db.userData[rootU] = {};
-        if (!db.userData[rootU]._enabled_states) db.userData[rootU]._enabled_states = {};
-        for (const uname in db.users) {
-          if (db.users[uname]?.enabled === false) {
-            db.userData[rootU]._enabled_states[uname] = false;
-          } else {
-            delete db.userData[rootU]._enabled_states[uname];
+        if (!db.userData[rootU]) {
+          console.warn('⚠️ root user_data 不存在，跳过 enabled_states 写入，避免覆盖分组/权限');
+        } else {
+          if (!db.userData[rootU]._enabled_states) db.userData[rootU]._enabled_states = {};
+          for (const uname in db.users) {
+            if (db.users[uname]?.enabled === false) {
+              db.userData[rootU]._enabled_states[uname] = false;
+            } else {
+              delete db.userData[rootU]._enabled_states[uname];
+            }
           }
+          console.log('💾 _enabled_states 写入:', db.userData[rootU]._enabled_states);
         }
-        console.log('💾 _enabled_states 写入:', db.userData[rootU]._enabled_states);
       }
       
       // 保存用户数据（只保存当前登录用户的数据，避免覆盖其他管理员）
@@ -4005,6 +4008,7 @@
     if (!editUserTarget) return;
     closeModal('editUserModal');
     openPermMgr(editUserTarget, 'user', function() {
+      document.getElementById('userMgrModal').classList.add('show');
       document.getElementById('editUserModal').classList.add('show');
     });
   }
@@ -4119,6 +4123,7 @@
   let leaderGroupForMgr = null;
   let leaderMembersForMgr = [];
   let permCloseCallback = null;
+  let permDirty = false;
 
   function closePermMgr() {
     var cb = permCloseCallback;
@@ -4129,10 +4134,25 @@
 
   async function openPermMgr(username, initialMode, onClose) {
     permCloseCallback = onClose || null;
+    
+    const prevDb = getDbSync();
+    const rootPrev = prevDb && Object.keys(prevDb.users || {}).find(u => prevDb.users[u]?.role === 'root');
+    const prevAccountGroups = rootPrev && prevDb.userData[rootPrev]?.accountGroups;
+    
     cachedDb = null;
     await getDb();
     
     const db = getDbSync();
+    
+    if (prevAccountGroups && prevAccountGroups.length > 0) {
+      const rootNow = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+      if (rootNow && (!db.userData[rootNow]?.accountGroups || db.userData[rootNow].accountGroups.length === 0)) {
+        console.warn('⚠️ Supabase 返回的 accountGroups 为空，从备份恢复');
+        db.userData[rootNow].accountGroups = prevAccountGroups;
+        localStorage.setItem('my_collection_data', JSON.stringify(db));
+      }
+    }
+    
     const currentRole = state.currentUser && db.users[state.currentUser]?.role;
     leaderGroupForMgr = (currentRole !== 'root' && currentRole !== 'admin') ? getLeaderGroup() : null;
     const isLeader = !!leaderGroupForMgr;
@@ -4201,6 +4221,7 @@
       }
     }
     
+    permDirty = false;
     closeModal('userMgrModal');
     document.getElementById('permissionMgrModal').classList.add('show');
   }
@@ -4750,6 +4771,7 @@
   }
 
   function toggleAllBmsInCat(catId, targetId, forceState) {
+    permDirty = true;
     var db = getDbSync();
     var allUsers = Object.keys(db.users);
     var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
@@ -4936,6 +4958,7 @@
     }
     if (newState === currentState) return;
 
+    permDirty = true;
     parent.dataset.state = newState;
 
     var dbForToggle = getDbSync();
@@ -5041,6 +5064,11 @@
   }
 
   function savePermissions() {
+    if (!permDirty) {
+      showToast('没有任何修改');
+      return;
+    }
+    
     const db = getDbSync();
     
     const currentUser = state.currentUser;
@@ -5150,6 +5178,7 @@
       renderBookmarks();
     });
     
+    permDirty = false;
     closePermMgr();
     showToast('权限已保存');
   }
