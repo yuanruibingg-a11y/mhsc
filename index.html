@@ -983,7 +983,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.2</div>
     </div>
   </aside>
 
@@ -1599,13 +1599,22 @@
           securityQ: u.security_question,
           securityAHash: u.security_answer_hash || u.security_answer,
           isMock: u.is_mock,
-          groups: u.groups || [],
-          enabled: u.enabled
+          groups: u.groups || []
         };
       });
       userDataList.forEach(d => {
         db.userData[d.username] = d.data;
       });
+      
+      // 从 root 的 user_data 恢复 enabled 状态
+      const rootU2 = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+      if (rootU2 && db.userData[rootU2] && db.userData[rootU2]._enabled_states) {
+        for (const uname in db.userData[rootU2]._enabled_states) {
+          if (db.users[uname]) {
+            db.users[uname].enabled = db.userData[rootU2]._enabled_states[uname];
+          }
+        }
+      }
       
       cachedDb = db;
       globalDb = db;
@@ -1665,8 +1674,7 @@
             security_answer: user.securityAHash,
             security_answer_hash: user.securityAHash,
             is_mock: user.isMock || false,
-            groups: user.groups || [],
-            enabled: user.enabled !== false
+            groups: user.groups || []
           };
           
           console.log('📤 保存用户:', username, userData);
@@ -1685,11 +1693,24 @@
         }
       }
       
+      // 将 enabled 状态存入 root 的 user_data（Supabase users 表没有 enabled 列）
+      const rootU = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+      if (rootU) {
+        if (!db.userData[rootU]) db.userData[rootU] = {};
+        if (!db.userData[rootU]._enabled_states) db.userData[rootU]._enabled_states = {};
+        for (const uname in db.users) {
+          if (db.users[uname]?.enabled === false) {
+            db.userData[rootU]._enabled_states[uname] = false;
+          } else {
+            delete db.userData[rootU]._enabled_states[uname];
+          }
+        }
+      }
+      
       // 保存用户数据（只保存当前登录用户的数据，避免覆盖其他管理员）
       const saveUserDataSet = new Set();
       saveUserDataSet.add(state.currentUser);
       // 同时保存 root 的 user_data（权限数据存储在 root 的 data 中）
-      const rootU = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
       if (rootU) saveUserDataSet.add(rootU);
       
       for (const username of saveUserDataSet) {
@@ -2899,11 +2920,15 @@
     btn.style.background = btnStyle || 'var(--danger)';
     btn.style.borderColor = btnStyle || 'var(--danger)';
     confirmCallback = callback;
-    document.getElementById('confirmModal').classList.add('show');
+    var modal = document.getElementById('confirmModal');
+    modal.style.zIndex = '110';
+    modal.classList.add('show');
   }
 
   function closeModal(id) {
-    document.getElementById(id).classList.remove('show');
+    var el = document.getElementById(id);
+    el.classList.remove('show');
+    if (id === 'confirmModal') el.style.zIndex = '';
     confirmCallback = null;
   }
 
@@ -3841,6 +3866,9 @@
           const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
           if (rootUser && db.userData[rootUser]?.pwd_vers) {
             delete db.userData[rootUser].pwd_vers[username];
+          }
+          if (rootUser && db.userData[rootUser]?._enabled_states) {
+            delete db.userData[rootUser]._enabled_states[username];
           }
         });
         
