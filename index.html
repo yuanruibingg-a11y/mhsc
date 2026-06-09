@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.9</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.10</div>
     </div>
   </aside>
 
@@ -3559,9 +3559,6 @@
 
     if (isAdminUser) {
       document.getElementById('editToggleBtn').style.display = '';
-      document.body.classList.add('editing');
-      document.getElementById('editToggleBtn').textContent = '✓';
-      document.getElementById('editToggleBtn').title = '退出编辑模式';
       document.getElementById('userMgrBtn').style.display = '';
       document.getElementById('leaderPermSection').style.display = 'none';
     } else {
