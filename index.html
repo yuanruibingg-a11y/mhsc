@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.10</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.11</div>
     </div>
   </aside>
 
@@ -4891,12 +4891,17 @@
         html += '<span class="perm-cat-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">' + toggleIcon + '</span>';
         html += '<span style="flex:1;font-size:13px;color:var(--text-primary);font-weight:500">📁 ' + catLabel + '</span>';
         if (bms.length > 0) {
-          html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
-          html += '<span class="perm-tri-group">';
-          html += '<span class="perm-tri-btn' + (isGroupMode && agg === 'all' ? ' is-active' : '') + (!isGroupMode && agg === 'all' ? ' is-active' : '') + '" data-action="allow" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'allow\')" style="color:' + (isGroupMode ? (agg === 'all' ? 'var(--accent)' : 'var(--text-muted)') : (agg === 'all' ? 'var(--accent)' : 'var(--text-muted)')) + '"><span class="perm-dot">' + allowDot + '</span> 允许</span>';
-          html += '<span class="perm-tri-btn' + (agg === 'denyAll' ? ' is-active' : '') + '" data-action="deny" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'deny\')" style="color:' + (agg === 'denyAll' ? 'var(--danger)' : 'var(--text-muted)') + '"><span class="perm-dot">' + denyDot + '</span> 禁止</span>';
-          html += '<span class="perm-tri-btn' + ((agg !== 'denyAll' && agg !== 'all') || (isGroupMode && agg !== 'all') ? ' is-active' : '') + '" data-action="default" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'default\')" style="color:' + defaultBtnColor + '" title="' + (catInherit ? '有继承分组权限' : '无继承分组权限') + '"><span class="perm-dot">' + defaultDot + '</span> 默认</span>';
-          html += '</span>';
+          if (isGroupMode) {
+            html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
+            html += '<input type="checkbox" class="perm-checkbox" data-type="category" data-id="' + catId + '" ' + (agg === 'all' ? 'checked' : '') + ' onchange="event.stopPropagation();permDirty=true;toggleCatCheckbox(\'' + catId + '\')" style="cursor:pointer;accent-color:var(--accent)">';
+          } else {
+            html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
+            html += '<span class="perm-tri-group">';
+            html += '<span class="perm-tri-btn' + (agg === 'all' ? ' is-active' : '') + '" data-action="allow" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'allow\')" style="color:' + (agg === 'all' ? 'var(--accent)' : 'var(--text-muted)') + '"><span class="perm-dot">' + allowDot + '</span> 允许</span>';
+            html += '<span class="perm-tri-btn' + (agg === 'denyAll' ? ' is-active' : '') + '" data-action="deny" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'deny\')" style="color:' + (agg === 'denyAll' ? 'var(--danger)' : 'var(--text-muted)') + '"><span class="perm-dot">' + denyDot + '</span> 禁止</span>';
+            html += '<span class="perm-tri-btn' + ((agg !== 'denyAll' && agg !== 'all') ? ' is-active' : '') + '" data-action="default" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'default\')" style="color:' + defaultBtnColor + '" title="' + (catInherit ? '有继承分组权限' : '无继承分组权限') + '"><span class="perm-dot">' + defaultDot + '</span> 默认</span>';
+            html += '</span>';
+          }
         }
         html += '</div>';
         
@@ -5038,6 +5043,16 @@
     }
   }
 
+  function toggleCatCheckbox(catId) {
+    var itemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
+    if (!itemsEl) return;
+    var catCb = document.querySelector('.perm-cat-header[data-id="' + catId + '"] .perm-checkbox[data-type="category"]');
+    if (!catCb) return;
+    var checkboxes = itemsEl.querySelectorAll('.perm-checkbox');
+    checkboxes.forEach(function(cb) { cb.checked = catCb.checked; });
+    updatePermCatHeaderLabel(catId, null);
+  }
+
   function updateCatTriForAccountMode(catId) {
     updatePermCatHeaderLabel(catId, null);
   }
@@ -5096,6 +5111,15 @@
       headerEl.dataset.state = 'default';
     }
 
+    if (isCheckboxMode) {
+      var catCb = headerEl.querySelector('.perm-checkbox[data-type="category"]');
+      if (catCb) {
+        if (agg === 'all') { catCb.checked = true; catCb.indeterminate = false; }
+        else if (allowCount > 0) { catCb.checked = false; catCb.indeterminate = true; }
+        else { catCb.checked = false; catCb.indeterminate = false; }
+      }
+    }
+
     if (triGroup) {
       var triBtns = triGroup.querySelectorAll('.perm-tri-btn');
       var defaultBtnColor = anyInherit ? 'var(--success)' : 'var(--danger)';
@@ -5147,6 +5171,7 @@
   // 监听书签 checkbox 变更，更新分类三态
   document.addEventListener('change', function(e) {
     if (e.target.classList.contains('perm-checkbox') && e.target.dataset.catId) {
+      permDirty = true;
       updatePermCatHeaderLabel(e.target.dataset.catId, null);
     }
   });
@@ -5223,6 +5248,7 @@
   function selectAllPerms() {
     if (currentPermMode === 'group') {
       document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = true);
+      permDirty = true;
       document.querySelectorAll('.perm-cat-items').forEach(function(el) {
         var catId = el.dataset.catId;
         if (catId) updatePermCatHeaderLabel(catId, null);
@@ -5245,6 +5271,7 @@
   function clearAllPerms() {
     if (currentPermMode === 'group') {
       document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+      permDirty = true;
       document.querySelectorAll('.perm-cat-items').forEach(function(el) {
         var catId = el.dataset.catId;
         if (catId) updatePermCatHeaderLabel(catId, null);
