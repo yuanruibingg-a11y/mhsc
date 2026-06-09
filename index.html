@@ -1049,7 +1049,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.3</div>
     </div>
   </aside>
 
@@ -3139,8 +3139,11 @@
         for (let i = 1; i < lines.length; i++) {
           const cols = lines[i].split(',').map(parseField);
           const name = cols[nameIdx];
-          const url = cols[urlIdx];
-          if (!name || !url || !url.startsWith('http')) continue;
+          let url = cols[urlIdx];
+          if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+          }
+          if (!name || !url) continue;
 
           const catName = catIdx !== -1 && cols[catIdx] ? cols[catIdx].trim() : '导入数据';
           let cat = state.categories.find(c => c.name === catName);
