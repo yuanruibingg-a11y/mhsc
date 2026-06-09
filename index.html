@@ -983,7 +983,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.3</div>
     </div>
   </aside>
 
@@ -1396,7 +1396,7 @@
     </div>
     <div class="form-actions" style="margin-top:16px">
       <button class="btn btn-primary" onclick="savePermissions()">保存权限</button>
-      <button class="btn btn-cancel" onclick="closeModal('permissionMgrModal')">取消</button>
+      <button class="btn btn-cancel" onclick="closePermMgr()">取消</button>
     </div>
   </div>
 </div>
@@ -1411,20 +1411,6 @@
     <div class="form-actions">
       <button class="btn btn-primary" onclick="saveAccountGroup()">保存</button>
       <button class="btn btn-cancel" onclick="closeModal('addGroupModal')">取消</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="userGroupModal">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-title">编辑分组归属</div>
-    <div style="margin-bottom:12px;color:var(--text-secondary);font-size:13px">
-      选择 <span id="userGroupUsername" style="color:var(--accent)"></span> 所属的分组
-    </div>
-    <div id="userGroupCheckList" style="max-height:250px;overflow-y:auto;margin-bottom:16px"></div>
-    <div class="form-actions">
-      <button class="btn btn-primary" onclick="saveUserGroupEdit()">保存</button>
-      <button class="btn btn-cancel" onclick="closeModal('userGroupModal')">取消</button>
     </div>
   </div>
 </div>
@@ -3588,7 +3574,10 @@
 
   function openGroupPermFromMgr(groupId) {
     closeModal('userMgrModal');
-    openPermMgr(null, 'group').then(function() {
+    openPermMgr(null, 'group', function() {
+      document.getElementById('userMgrModal').classList.add('show');
+      selectGroup(selectedGroupId);
+    }).then(function() {
       selectPermGroup(groupId);
     });
   }
@@ -3954,7 +3943,7 @@
     const db = getDbSync();
     const user = db.users[editUserTarget];
     if (!user) {
-      showError('用户不存在');
+      showToast('用户不存在');
       return;
     }
     
@@ -4015,104 +4004,9 @@
   function openEditUserPerm() {
     if (!editUserTarget) return;
     closeModal('editUserModal');
-    openPermMgr(editUserTarget);
-  }
-
-  let currentUserGroupEditTarget = null;
-
-  function openUserGroupEdit(username) {
-    currentUserGroupEditTarget = username;
-    document.getElementById('userGroupUsername').textContent = username;
-    const db = getDbSync();
-    const allUsersKeys = Object.keys(db.users);
-    const rootUser = allUsersKeys.find(u => db.users[u]?.role === 'root');
-    const accountGroups = (rootUser && db.userData[rootUser]?.accountGroups) || [];
-    const userGroups = db.users[username]?.groups || [];
-    const listArea = document.getElementById('userGroupCheckList');
-    if (accountGroups.length === 0) {
-      listArea.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px">暂未创建分组，请先在权限管理中创建分组</div>';
-    } else {
-      listArea.innerHTML = accountGroups.map(g => {
-        const checked = userGroups.includes(g.id);
-        return `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <input type="checkbox" class="user-group-cb" data-gid="${g.id}" ${checked ? 'checked' : ''} style="margin-right:10px;cursor:pointer;accent-color:var(--accent)">
-          <span style="font-size:13px;color:var(--text-primary)">👥 ${g.name}</span>
-        </div>`;
-      }).join('');
-    }
-    document.getElementById('userGroupModal').classList.add('show');
-  }
-
-  async function saveUserGroupEdit() {
-    const username = currentUserGroupEditTarget;
-    if (!username) return;
-    const gids = [];
-    document.querySelectorAll('.user-group-cb:checked').forEach(cb => gids.push(cb.dataset.gid));
-    const db = getDbSync();
-    if (db.users[username]) {
-      db.users[username].groups = gids;
-    }
-    cachedDb = null;
-    await saveDb(db);
-    closeModal('userGroupModal');
-    renderUserList();
-    showToast('分组归属已保存');
-    if (username === state.currentUser) {
-      const fp = getUserFinalPermissions(username);
-      state.categories = fp.categories;
-      state.bookmarks = fp.bookmarks;
-      renderCategories();
-      renderBookmarks();
-    }
-  }
-
-  function changeUserRole(username, role) {
-    const db = getDbSync();
-    if (db.users[username]) {
-      db.users[username].role = role;
-      saveDb(db);
-      if (state.currentUser === username) {
-        loadUserData(username);
-        renderCategories();
-        renderBookmarks();
-        updateMainTitle();
-      }
-      showToast(`已更新 ${username} 角色`);
-    }
-  }
-
-  async function deleteUser(username) {
-    if (!confirm(`确定要删除用户「${username}」吗？此操作不可恢复。`)) return;
-    const db = getDbSync();
-    delete db.users[username];
-    if (db.userData[username]) delete db.userData[username];
-    saveDb(db);
-    if (sbClient) {
-      try {
-        await sbClient.from('users').delete().eq('username', username);
-        await sbClient.from('user_data').delete().eq('username', username);
-        console.log('🗑️ 已从云端删除用户:', username);
-      } catch(e) {
-        console.error('❌ 云端删除失败:', username, e);
-      }
-    }
-    renderUserList();
-    showToast(`已删除 ${username}`);
-  }
-
-  function changeUserRole(username, role) {
-    const db = getDbSync();
-    if (db.users[username]) {
-      db.users[username].role = role;
-      saveDb(db);
-      if (state.currentUser === username) {
-        loadUserData(username);
-        renderCategories();
-        renderBookmarks();
-        updateMainTitle();
-      }
-      showToast(`已更新 ${username} 角色`);
-    }
+    openPermMgr(editUserTarget, 'user', function() {
+      document.getElementById('editUserModal').classList.add('show');
+    });
   }
 
   function openAddUserModal() {
@@ -4224,8 +4118,17 @@
   
   let leaderGroupForMgr = null;
   let leaderMembersForMgr = [];
+  let permCloseCallback = null;
 
-  async function openPermMgr(username, initialMode) {
+  function closePermMgr() {
+    var cb = permCloseCallback;
+    document.getElementById('permissionMgrModal').classList.remove('show');
+    permCloseCallback = null;
+    if (cb) cb();
+  }
+
+  async function openPermMgr(username, initialMode, onClose) {
+    permCloseCallback = onClose || null;
     cachedDb = null;
     await getDb();
     
@@ -4276,7 +4179,11 @@
         permContentList.style.display = 'none';
       }
     } else {
-      tabBar.style.display = '';
+      if (initialMode) {
+        tabBar.style.display = 'none';
+      } else {
+        tabBar.style.display = '';
+      }
       memberListView.style.display = 'none';
       backBtnArea.style.display = 'none';
       if (currentPermMode === 'user') {
@@ -5243,7 +5150,7 @@
       renderBookmarks();
     });
     
-    closeModal('permissionMgrModal');
+    closePermMgr();
     showToast('权限已保存');
   }
 
@@ -5390,7 +5297,14 @@
 
   document.querySelectorAll('.modal-overlay').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target === el) { el.classList.remove('show'); confirmCallback = null; }
+      if (e.target === el) {
+        if (el.id === 'permissionMgrModal') {
+          closePermMgr();
+        } else {
+          el.classList.remove('show');
+          confirmCallback = null;
+        }
+      }
     });
   });
 
