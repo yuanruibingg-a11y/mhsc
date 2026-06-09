@@ -1609,11 +1609,16 @@
       // 从 root 的 user_data 恢复 enabled 状态
       const rootU2 = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
       if (rootU2 && db.userData[rootU2] && db.userData[rootU2]._enabled_states) {
-        for (const uname in db.userData[rootU2]._enabled_states) {
+        const es = db.userData[rootU2]._enabled_states;
+        console.log('🔄 恢复 enabled 状态:', es);
+        for (const uname in es) {
           if (db.users[uname]) {
-            db.users[uname].enabled = db.userData[rootU2]._enabled_states[uname];
+            db.users[uname].enabled = es[uname];
+            console.log('  → ' + uname + ': enabled=' + es[uname]);
           }
         }
+      } else {
+        console.log('🔄 没有 _enabled_states，所有用户默认启用');
       }
       
       cachedDb = db;
@@ -1705,6 +1710,7 @@
             delete db.userData[rootU]._enabled_states[uname];
           }
         }
+        console.log('💾 _enabled_states 写入:', db.userData[rootU]._enabled_states);
       }
       
       // 保存用户数据（只保存当前登录用户的数据，避免覆盖其他管理员）
