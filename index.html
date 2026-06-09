@@ -897,6 +897,8 @@
   body:not(.editing) .nav-item:hover .nav-actions { display: none !important; }
   body:not(.editing) .bookmark-card .bm-card-actions { display: none !important; }
   body:not(.editing) .bookmark-card:hover .bm-card-actions { display: none !important; }
+  body:not(.editing) .bookmark-card.allow-copy .bm-card-actions { display: flex !important; }
+  body:not(.editing) .bookmark-card.allow-copy:hover .bm-card-actions { display: flex !important; }
   body:not(.editing) .drag-handle { display: none !important; }
   body:not(.editing) .bookmark-card:hover .drag-handle { display: none !important; }
   body:not(.editing) .view-add-btn { display: none !important; }
@@ -1034,7 +1036,7 @@
         <button class="btn btn-sm btn-icon" onclick="document.getElementById('importFile').click()" title="导入JSON数据">⬆</button>
         <button class="btn btn-sm btn-icon" onclick="document.getElementById('importCsvFile').click()" title="导入CSV表格">📊</button>
         <button class="btn btn-sm btn-icon" onclick="document.getElementById('importHtmlFile').click()" title="导入Chrome/Firefox书签HTML">🌐</button>
-        <button class="btn btn-sm btn-icon" onclick="exportData()" title="导出数据">⬇</button>
+        <button class="btn btn-sm btn-icon" onclick="exportAllData()" title="导出数据">⬇</button>
       </div>
       <div class="footer-section">
         <button class="btn btn-sm" onclick="logout()" title="切换账号" style="color:var(--danger);width:100%">⇄ 切换账号</button>
@@ -1049,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.4</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.5</div>
     </div>
   </aside>
 
@@ -2042,11 +2044,11 @@
     if (state.currentUser) {
       const user = db.users[state.currentUser];
       if (user && (user.role === 'admin' || user.role === 'root')) {
-        db.userData[state.currentUser] = {
-          groups: state.groups,
-          categories: state.categories,
-          bookmarks: state.bookmarks
-        };
+        var existing = db.userData[state.currentUser] || {};
+        existing.groups = state.groups;
+        existing.categories = state.categories;
+        existing.bookmarks = state.bookmarks;
+        db.userData[state.currentUser] = existing;
         saveDb(db);
       }
     }
@@ -2526,7 +2528,7 @@
                      container.appendChild(img);
                    "`;
         return `
-          <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}"${catNoDirectOpen ? ' data-no-direct-open="1"' : ''}>
+          <div class="bookmark-card ${isStarred ? 'starred' : ''}${catAllowCopy ? ' allow-copy' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}"${catNoDirectOpen ? ' data-no-direct-open="1"' : ''}>
             ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
             <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
             <div class="bm-icon" id="bm-icon-${bm.id}">
@@ -3104,7 +3106,7 @@
   }
 
   function exportData() {
-    const data = JSON.stringify({ categories: state.categories, bookmarks: state.bookmarks }, null, 2);
+    const data = JSON.stringify({ groups: state.groups, categories: state.categories, bookmarks: state.bookmarks }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -3122,6 +3124,7 @@
       try {
         const data = JSON.parse(e.target.result);
         if (data.categories && data.bookmarks) {
+          if (data.groups) state.groups = data.groups;
           state.categories = data.categories;
           state.bookmarks = data.bookmarks;
           state.activeCategoryId = null;
