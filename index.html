@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.11</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.12</div>
     </div>
   </aside>
 
@@ -4893,7 +4893,7 @@
         if (bms.length > 0) {
           if (isGroupMode) {
             html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
-            html += '<input type="checkbox" class="perm-checkbox" data-type="category" data-id="' + catId + '" ' + (agg === 'all' ? 'checked' : '') + ' onchange="event.stopPropagation();permDirty=true;toggleCatCheckbox(\'' + catId + '\')" style="cursor:pointer;accent-color:var(--accent)">';
+            html += '<input type="checkbox" class="perm-checkbox" data-type="category" data-id="' + catId + '" ' + (agg === 'all' ? 'checked' : '') + ' onchange="event.stopPropagation();permDirty=true;toggleCatCheckbox(\'' + catId + '\')" onclick="event.stopPropagation()" style="cursor:pointer;accent-color:var(--accent)">';
           } else {
             html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
             html += '<span class="perm-tri-group">';
