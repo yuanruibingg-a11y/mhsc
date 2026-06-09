@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.5</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.6</div>
     </div>
   </aside>
 
@@ -4539,8 +4539,11 @@
       db.userData[rootUser].accountGroups.push({ id: genId(), name, leader: null });
     }
     cachedDb = null;
+    showToast('正在保存...');
     await saveDb(db);
     renderPermGroupList();
+    renderGroupList();
+    renderUserList();
     closeModal('addGroupModal');
     showToast('分组已保存');
   }
@@ -4560,8 +4563,11 @@
       document.getElementById('permHint').style.display = '';
     }
     cachedDb = null;
+    showToast('正在删除...');
     await saveDb(db);
     renderPermGroupList();
+    renderGroupList();
+    renderUserList();
     showToast('分组已删除');
   }
 
