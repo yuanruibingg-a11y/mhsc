@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.6</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.7</div>
     </div>
   </aside>
 
@@ -4995,6 +4995,19 @@
         else if (allDeny) targetState = 'default';
         else targetState = 'allow';
       }
+      if (targetState === 'allow') {
+        var denyCount = 0;
+        items.forEach(function(item) {
+          if (item.dataset.state === 'deny') denyCount++;
+        });
+        if (denyCount > 0) {
+          if (!confirm('此分类下有 ' + denyCount + ' 个书签当前为「禁止」，操作后将全部改为「允许」。确定吗？')) return;
+        }
+      }
+      window._expandedCatsInPerm = window._expandedCatsInPerm || {};
+      window._expandedCatsInPerm[catId] = true;
+      var catItemsEl = document.querySelector('.perm-cat-items[data-cat-id="' + catId + '"]');
+      if (catItemsEl) catItemsEl.style.display = '';
       items.forEach(function(item) {
         var id = item.dataset.id;
         var type = item.dataset.type || 'bookmark';
