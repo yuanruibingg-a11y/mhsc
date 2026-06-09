@@ -25,14 +25,79 @@
     --border-light: rgba(240, 235, 227, 0.1);
     --danger: #e06060;
     --danger-hover: #f07070;
+    --success: #4caf50;
+    --success-dim: rgba(76, 175, 80, 0.12);
+    --danger-dim: rgba(224, 96, 96, 0.12);
+    --warning: #f0a040;
+    --on-accent: #1a1816;
+    --scrollbar-thumb: var(--text-muted);
     --radius: 12px;
     --radius-lg: 20px;
     --radius-sm: 8px;
     --shadow: 0 2px 20px rgba(0,0,0,0.3);
     --shadow-sm: 0 1px 8px rgba(0,0,0,0.2);
+    --header-bg: rgba(26, 24, 22, 0.85);
     --font-serif: 'Noto Serif SC', serif;
     --font-sans: 'Noto Sans SC', system-ui, sans-serif;
     --sidebar-width: 240px;
+  }
+
+  :root[data-theme="light"] {
+    --bg-primary: #f5f3f0;
+    --bg-secondary: #faf9f7;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f0ede8;
+    --bg-surface: #edeae4;
+    --text-primary: #1a1816;
+    --text-secondary: #6b6360;
+    --text-muted: #9b9390;
+    --accent: #c4963a;
+    --accent-hover: #d4a853;
+    --accent-glow: rgba(196, 150, 58, 0.12);
+    --accent-dim: rgba(196, 150, 58, 0.06);
+    --border: rgba(0, 0, 0, 0.06);
+    --border-light: rgba(0, 0, 0, 0.1);
+    --danger: #c0392b;
+    --danger-hover: #d44a3b;
+    --success: #3d9142;
+    --success-dim: rgba(76, 175, 80, 0.08);
+    --danger-dim: rgba(192, 57, 43, 0.08);
+    --warning: #d48420;
+    --on-accent: #ffffff;
+    --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+    --shadow: 0 2px 20px rgba(0,0,0,0.08);
+    --shadow-sm: 0 1px 8px rgba(0,0,0,0.05);
+    --header-bg: rgba(245, 243, 240, 0.85);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+      --bg-primary: #f5f3f0;
+      --bg-secondary: #faf9f7;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f0ede8;
+      --bg-surface: #edeae4;
+      --text-primary: #1a1816;
+      --text-secondary: #6b6360;
+      --text-muted: #9b9390;
+      --accent: #c4963a;
+      --accent-hover: #d4a853;
+      --accent-glow: rgba(196, 150, 58, 0.12);
+      --accent-dim: rgba(196, 150, 58, 0.06);
+      --border: rgba(0, 0, 0, 0.06);
+      --border-light: rgba(0, 0, 0, 0.1);
+      --danger: #c0392b;
+      --danger-hover: #d44a3b;
+      --success: #3d9142;
+      --success-dim: rgba(76, 175, 80, 0.08);
+      --danger-dim: rgba(192, 57, 43, 0.08);
+      --warning: #d48420;
+      --on-accent: #ffffff;
+      --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+      --shadow: 0 2px 20px rgba(0,0,0,0.08);
+      --shadow-sm: 0 1px 8px rgba(0,0,0,0.05);
+      --header-bg: rgba(245, 243, 240, 0.85);
+    }
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -100,7 +165,7 @@
 
   .sidebar-nav::-webkit-scrollbar { width: 4px; }
   .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
-  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
 
   .nav-section-label {
     font-size: 10px;
@@ -167,7 +232,7 @@
     min-width: 20px;
     text-align: center;
   }
-  .nav-item.active .nav-count { background: var(--accent); color: var(--bg-primary); }
+  .nav-item.active .nav-count { background: var(--accent); color: var(--on-accent); }
 
   .nav-item .nav-actions {
     display: none;
@@ -203,7 +268,7 @@
   .perm-state-label .perm-dot { font-size: 13px; }
   .perm-state-label.s-allow { color: var(--accent); }
   .perm-state-label.s-deny { color: var(--danger); }
-  .perm-state-label.s-inherit { color: #4caf50; }
+  .perm-state-label.s-inherit { color: var(--success); }
   .perm-state-label.s-default { color: var(--danger); }
   .perm-item:hover .perm-state-label { display: none; }
   .perm-item:hover .perm-tri-group { display: inline-flex; }
@@ -339,11 +404,11 @@
   .btn:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--text-muted); }
   .btn-primary {
     background: var(--accent);
-    color: var(--bg-primary);
+    color: var(--on-accent);
     border-color: var(--accent);
     font-weight: 500;
   }
-  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--bg-primary); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
   .btn-sm { padding: 4px 10px; font-size: 12px; }
   .perm-tab {
     background: var(--bg-card);
@@ -382,7 +447,7 @@
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    background: rgba(26, 24, 22, 0.85);
+    background: var(--header-bg);
     backdrop-filter: blur(12px);
     z-index: 5;
   }
@@ -982,8 +1047,9 @@
       <button class="btn btn-sm" onclick="openPermMgr()" style="width:100%">👥 组员权限</button>
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.5</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.2</div>
     </div>
   </aside>
 
@@ -2935,6 +3001,38 @@
     el._timer = setTimeout(() => el.classList.remove('show'), 2200);
   }
 
+  function applyTheme(theme) {
+    var root = document.documentElement;
+    var btn = document.getElementById('themeToggleBtn');
+    if (theme === 'light') {
+      root.setAttribute('data-theme', 'light');
+      if (btn) btn.textContent = '☀️ 浅色模式';
+    } else if (theme === 'auto') {
+      root.removeAttribute('data-theme');
+      var isLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+      if (btn) btn.textContent = '💻 跟随系统 (' + (isLight ? '浅色' : '深色') + ')';
+    } else {
+      root.setAttribute('data-theme', 'dark');
+      if (btn) btn.textContent = '🌙 深色模式';
+    }
+  }
+
+  function setUserTheme(theme) {
+    var db = getDbSync();
+    if (state.currentUser && db.users[state.currentUser]) {
+      db.users[state.currentUser].theme = theme;
+      localStorage.setItem('my_collection_data', JSON.stringify(db));
+    }
+    applyTheme(theme);
+  }
+
+  function cycleTheme() {
+    var db = getDbSync();
+    var currentTheme = (state.currentUser && db.users[state.currentUser]?.theme) || 'dark';
+    var next = (currentTheme === 'dark') ? 'light' : (currentTheme === 'light') ? 'auto' : 'dark';
+    setUserTheme(next);
+  }
+
   function exportData() {
     const data = JSON.stringify({ categories: state.categories, bookmarks: state.bookmarks }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
@@ -3400,6 +3498,9 @@
     updateMainTitle();
     renderCategories();
     renderBookmarks();
+    
+    var userTheme = (state.currentUser && db.users[state.currentUser]?.theme) || 'dark';
+    applyTheme(userTheme);
   }
 
   function logout() {
@@ -4610,7 +4711,7 @@
       var denyColor = 'var(--text-muted)';
       if (state === 'allow') allowColor = 'var(--accent)';
       else if (state === 'deny') denyColor = 'var(--danger)';
-      var defaultBtnColor = inheritedFromGroup ? '#4caf50' : 'var(--danger)';
+      var defaultBtnColor = inheritedFromGroup ? 'var(--success)' : 'var(--danger)';
 
       var allowDot = (state === 'allow') ? '●' : '○';
       var denyDot = (state === 'deny') ? '●' : '○';
@@ -4689,7 +4790,7 @@
         else if (agg === 'denyAll') { catLabelClass = 's-deny'; catLabelText = '禁止'; }
         else if (agg === 'all') { catLabelClass = 's-allow'; catLabelText = '允许'; }
         else if (catInherit) { catLabelClass = 's-inherit'; }
-        var defaultBtnColor = catInherit ? '#4caf50' : 'var(--danger)';
+        var defaultBtnColor = catInherit ? 'var(--success)' : 'var(--danger)';
         var allowDot = (isGroupMode ? (agg === 'all' ? '●' : '○') : (agg === 'all' ? '●' : '○'));
         var denyDot = (agg === 'denyAll' ? '●' : '○');
         var defaultDot = (agg === 'denyAll' || agg === 'all' ? '○' : '●');
@@ -4891,7 +4992,7 @@
 
     if (triGroup) {
       var triBtns = triGroup.querySelectorAll('.perm-tri-btn');
-      var defaultBtnColor = anyInherit ? '#4caf50' : 'var(--danger)';
+      var defaultBtnColor = anyInherit ? 'var(--success)' : 'var(--danger)';
       triBtns.forEach(function(t) { t.classList.remove('is-active'); });
       triBtns.forEach(function(t) { t.style.color = 'var(--text-muted)'; });
       triBtns.forEach(function(t) { var d = t.querySelector('.perm-dot'); if (d) d.textContent = '○'; });
@@ -4985,7 +5086,7 @@
     } else if (newState === 'deny') {
       if (clickedBtn) clickedBtn.style.color = 'var(--danger)';
     } else {
-      var defaultBtnColor = inheritedForToggle ? '#4caf50' : 'var(--danger)';
+      var defaultBtnColor = inheritedForToggle ? 'var(--success)' : 'var(--danger)';
       if (clickedBtn) { clickedBtn.style.color = defaultBtnColor; }
     }
     if (clickedBtn) clickedBtn.classList.add('is-active');
