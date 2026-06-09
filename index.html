@@ -983,7 +983,7 @@
     </div>
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.15.1</div>
     </div>
   </aside>
 
@@ -1599,7 +1599,8 @@
           securityQ: u.security_question,
           securityAHash: u.security_answer_hash || u.security_answer,
           isMock: u.is_mock,
-          groups: u.groups || []
+          groups: u.groups || [],
+          enabled: u.enabled
         };
       });
       userDataList.forEach(d => {
@@ -1664,7 +1665,8 @@
             security_answer: user.securityAHash,
             security_answer_hash: user.securityAHash,
             is_mock: user.isMock || false,
-            groups: user.groups || []
+            groups: user.groups || [],
+            enabled: user.enabled !== false
           };
           
           console.log('📤 保存用户:', username, userData);
@@ -2889,6 +2891,17 @@
     if (confirmCallback) { confirmCallback(); confirmCallback = null; }
   }
 
+  function showConfirmDialog(title, text, btnText, btnStyle, callback) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmText').innerHTML = text.replace(/\n/g, '<br>');
+    const btn = document.getElementById('confirmBtn');
+    btn.textContent = btnText;
+    btn.style.background = btnStyle || 'var(--danger)';
+    btn.style.borderColor = btnStyle || 'var(--danger)';
+    confirmCallback = callback;
+    document.getElementById('confirmModal').classList.add('show');
+  }
+
   function closeModal(id) {
     document.getElementById(id).classList.remove('show');
     confirmCallback = null;
@@ -3604,15 +3617,21 @@
     const disableBtn = document.getElementById('batchDisableBtn');
     const deleteBtn = document.getElementById('batchDeleteBtn');
     
-    if (count > 0) {
-      enableBtn.disabled = false;
-      disableBtn.disabled = false;
-      deleteBtn.disabled = false;
-    } else {
+    if (count === 0) {
       enableBtn.disabled = true;
       disableBtn.disabled = true;
       deleteBtn.disabled = true;
+      return;
     }
+    
+    const db = getDbSync();
+    const selectedUsernames = Array.from(selectedUsers);
+    const allEnabled = selectedUsernames.every(u => db.users[u]?.enabled !== false);
+    const allDisabled = selectedUsernames.every(u => db.users[u]?.enabled === false);
+    
+    enableBtn.disabled = allEnabled;
+    disableBtn.disabled = allDisabled;
+    deleteBtn.disabled = false;
   }
 
   function renderUserList() {
@@ -3642,7 +3661,7 @@
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
         <span style="flex:0.5;text-align:center">
-          <input type="checkbox" id="selectAllUsers" onchange="selectAllUsers(this.checked)" ${users.length > 0 && users.every(u => u.role !== 'root' && selectedUsers.has(u.username)) ? 'checked' : ''} style="cursor:pointer">
+          <input type="checkbox" id="selectAllUsers" onchange="selectAllUsers(this.checked)" ${users.filter(u => u.role !== 'root').length > 0 && users.filter(u => u.role !== 'root').every(u => selectedUsers.has(u.username)) ? 'checked' : ''} style="cursor:pointer">
         </span>
         <span style="flex:2.5">账号</span>
         <span style="flex:1;text-align:center">角色</span>
@@ -3721,24 +3740,32 @@
     countEl.textContent = `${users.length} 个用户`;
   }
 
-  async function batchEnableUsers() {
+  function batchEnableUsers() {
     if (selectedUsers.size === 0) return;
-    if (!confirm(`确定要启用选中的 ${selectedUsers.size} 个用户吗？`)) return;
-    
-    const db = getDbSync();
-    selectedUsers.forEach(username => {
-      if (!db.users[username]) db.users[username] = {};
-      db.users[username].enabled = true;
-    });
-    
-    saveDb(db);
-    renderUserList();
-    selectedUsers.clear();
-    updateToolbarState();
-    showToast('已启用选中用户');
+    const targetCount = selectedUsers.size;
+    showConfirmDialog(
+      '启用用户',
+      `确定要启用选中的 ${targetCount} 个用户吗？`,
+      '启用',
+      'var(--accent)',
+      async function() {
+        const db = getDbSync();
+        selectedUsers.forEach(username => {
+          if (!db.users[username]) db.users[username] = {};
+          db.users[username].enabled = true;
+        });
+        
+        saveDb(db);
+        closeModal('confirmModal');
+        renderUserList();
+        selectedUsers.clear();
+        updateToolbarState();
+        showToast('已启用选中用户');
+      }
+    );
   }
 
-  async function batchDisableUsers() {
+  function batchDisableUsers() {
     if (selectedUsers.size === 0) return;
     
     const db = getDbSync();
@@ -3749,25 +3776,35 @@
     }
     
     const hasCurrent = selectedUsers.has(state.currentUser);
-    if (hasCurrent && !confirm('确定要禁用当前登录账号吗？禁用后将无法登录，需要其他管理员重新启用。')) {
-      return;
-    }
+    const targetCount = selectedUsers.size;
     
-    if (!confirm(`确定要禁用选中的 ${selectedUsers.size} 个用户吗？`)) return;
+    const confirmText = hasCurrent
+      ? `确定要禁用选中的 ${targetCount} 个用户吗？\n\n注意：您正在禁用当前登录账号，禁用后将无法登录，需要其他管理员重新启用。`
+      : `确定要禁用选中的 ${targetCount} 个用户吗？`;
     
-    selectedUsers.forEach(username => {
-      if (!db.users[username]) db.users[username] = {};
-      db.users[username].enabled = false;
-    });
-    
-    saveDb(db);
-    renderUserList();
-    selectedUsers.clear();
-    updateToolbarState();
-    showToast('已禁用选中用户');
+    showConfirmDialog(
+      '禁用用户',
+      confirmText,
+      '禁用',
+      'var(--warning)',
+      async function() {
+        const db = getDbSync();
+        selectedUsers.forEach(username => {
+          if (!db.users[username]) db.users[username] = {};
+          db.users[username].enabled = false;
+        });
+        
+        saveDb(db);
+        closeModal('confirmModal');
+        renderUserList();
+        selectedUsers.clear();
+        updateToolbarState();
+        showToast('已禁用选中用户');
+      }
+    );
   }
 
-  async function batchDeleteUsers() {
+  function batchDeleteUsers() {
     if (selectedUsers.size === 0) return;
     
     const db = getDbSync();
@@ -3779,39 +3816,54 @@
     
     const enabledUsers = Array.from(selectedUsers).filter(u => db.users[u]?.enabled !== false);
     if (enabledUsers.length > 0) {
-      alert(`请先禁用以下账号再删除：\n${enabledUsers.join('\n')}`);
+      showConfirmDialog(
+        '提示',
+        `以下用户仍为启用状态，请先禁用再删除：\n${enabledUsers.join('\n')}`,
+        '知道了',
+        'var(--accent)',
+        function() { closeModal('confirmModal'); }
+      );
       return;
     }
     
-    if (!confirm(`确定要删除选中的 ${selectedUsers.size} 个用户吗？此操作不可恢复！`)) return;
-    
-    selectedUsers.forEach(username => {
-      delete db.users[username];
-      delete db.userData[username];
-      
-      const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
-      if (rootUser && db.userData[rootUser]?.pwd_vers) {
-        delete db.userData[rootUser].pwd_vers[username];
-      }
-    });
-    
-    saveDb(db);
-    
-    if (sbClient) {
-      try {
-        for (const username of selectedUsers) {
-          await sbClient.from('users').delete().eq('username', username);
-          await sbClient.from('user_data').delete().eq('username', username);
+    const targetCount = selectedUsers.size;
+    showConfirmDialog(
+      '删除用户',
+      `确定要删除选中的 ${targetCount} 个用户吗？此操作不可恢复！`,
+      '删除',
+      'var(--danger)',
+      async function() {
+        const db = getDbSync();
+        selectedUsers.forEach(username => {
+          delete db.users[username];
+          delete db.userData[username];
+          
+          const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+          if (rootUser && db.userData[rootUser]?.pwd_vers) {
+            delete db.userData[rootUser].pwd_vers[username];
+          }
+        });
+        
+        saveDb(db);
+        
+        if (sbClient) {
+          try {
+            for (const username of selectedUsers) {
+              await sbClient.from('users').delete().eq('username', username);
+              await sbClient.from('user_data').delete().eq('username', username);
+            }
+          } catch (e) {
+            console.error('批量删除Supabase数据失败:', e);
+          }
         }
-      } catch (e) {
-        console.error('批量删除Supabase数据失败:', e);
+        
+        closeModal('confirmModal');
+        renderUserList();
+        selectedUsers.clear();
+        updateToolbarState();
+        showToast('已删除选中用户');
       }
-    }
-    
-    renderUserList();
-    selectedUsers.clear();
-    updateToolbarState();
-    showToast('已删除选中用户');
+    );
   }
 
   let editUserTarget = null;
@@ -3859,7 +3911,7 @@
     
     document.getElementById('editUserPermBtn').style.display = (isCurrentAdmin && !isRoot) ? 'block' : 'none';
     
-    document.getElementById('editUserModal').style.display = 'block';
+    document.getElementById('editUserModal').classList.add('show');
   }
 
   async function saveEditUser() {
@@ -3898,9 +3950,9 @@
     }
     
     if (password) {
-      const salt = generateSalt();
-      user.passwordHash = hashPassword(password, salt);
-      user.passwordSalt = salt;
+      const pwdHash = await hashPassword(password);
+      user.passwordHash = pwdHash.hash;
+      user.passwordSalt = pwdHash.salt;
       
       const rootUser = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
       if (rootUser) {
@@ -3920,6 +3972,7 @@
     }
     
     saveDb(db);
+    await new Promise(r => setTimeout(r, 100));
     renderUserList();
     closeModal('editUserModal');
     showToast('用户信息已更新');
