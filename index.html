@@ -1051,7 +1051,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.7</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.8</div>
     </div>
   </aside>
 
@@ -4315,17 +4315,28 @@
     const prevDb = getDbSync();
     const rootPrev = prevDb && Object.keys(prevDb.users || {}).find(u => prevDb.users[u]?.role === 'root');
     const prevAccountGroups = rootPrev && prevDb.userData[rootPrev]?.accountGroups;
-    
+    const prevPermissions = rootPrev && prevDb.userData[rootPrev]?.permissions;
+
     cachedDb = null;
     await getDb();
-    
+
     const db = getDbSync();
-    
+    var rootNow = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
+
     if (prevAccountGroups && prevAccountGroups.length > 0) {
-      const rootNow = Object.keys(db.users).find(u => db.users[u]?.role === 'root');
       if (rootNow && (!db.userData[rootNow]?.accountGroups || db.userData[rootNow].accountGroups.length === 0)) {
         console.warn('⚠️ Supabase 返回的 accountGroups 为空，从备份恢复');
+        if (!db.userData[rootNow]) db.userData[rootNow] = {};
         db.userData[rootNow].accountGroups = prevAccountGroups;
+        localStorage.setItem('my_collection_data', JSON.stringify(db));
+      }
+    }
+
+    if (prevPermissions) {
+      if (rootNow && (!db.userData[rootNow]?.permissions || Object.keys(db.userData[rootNow].permissions).length === 0)) {
+        console.warn('⚠️ Supabase 返回的 permissions 为空，从备份恢复');
+        if (!db.userData[rootNow]) db.userData[rootNow] = {};
+        db.userData[rootNow].permissions = prevPermissions;
         localStorage.setItem('my_collection_data', JSON.stringify(db));
       }
     }
@@ -5259,7 +5270,7 @@
     }
   }
 
-  function savePermissions() {
+  async function savePermissions() {
     if (!permDirty) {
       showToast('没有任何修改');
       return;
@@ -5355,25 +5366,24 @@
       };
     }
     
-    // 清除缓存并保存到云端
     cachedDb = null;
-    saveDb(db).then(() => {
-      const currentDb = getDbSync();
-      const rd = currentDb.userData[rootUser] || {};
-      state.groups = rd.groups || [];
-      
-      if (currentRole === 'root') {
-        state.categories = rd.categories || [];
-        state.bookmarks = rd.bookmarks || [];
-      } else {
-        const fp = getUserFinalPermissions(currentUser);
-        state.categories = fp.categories;
-        state.bookmarks = fp.bookmarks;
-      }
-      renderCategories();
-      renderBookmarks();
-    });
-    
+    showToast('正在保存权限...');
+    await saveDb(db);
+    const currentDb = getDbSync();
+    const rd = currentDb.userData[rootUser] || {};
+    state.groups = rd.groups || [];
+
+    if (currentRole === 'root') {
+      state.categories = rd.categories || [];
+      state.bookmarks = rd.bookmarks || [];
+    } else {
+      const fp = getUserFinalPermissions(currentUser);
+      state.categories = fp.categories;
+      state.bookmarks = fp.bookmarks;
+    }
+    renderCategories();
+    renderBookmarks();
+
     permDirty = false;
     closePermMgr();
     showToast('权限已保存');
