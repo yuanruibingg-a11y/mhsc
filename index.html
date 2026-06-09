@@ -4309,8 +4309,8 @@
       }
       
       return `<div class="perm-item" data-type="${itemType}" data-id="${item.id}" data-state="${state}"${catId ? ' data-cat-id="' + catId + '"' : ''} style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:6px">
-        ${actionHtml}
         <span style="flex:1;font-size:13px;color:var(--text-primary)">${icon} ${label}</span>
+        ${actionHtml}
       </div>`;
     }
     
@@ -4368,6 +4368,7 @@
 
         html += '<div class="perm-cat-header perm-item" data-type="category" data-id="' + catId + '" data-state="' + catState + '" style="display:flex;align-items:center;padding:4px 0;cursor:pointer" onclick="togglePermCategoryExpand(\'' + catId + '\',\'' + targetId + '\')">';
         html += '<span class="perm-cat-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">' + toggleIcon + '</span>';
+        html += '<span style="flex:1;font-size:13px;color:var(--text-primary);font-weight:500">📁 ' + catLabel + '</span>';
         if (bms.length > 0) {
           html += '<span class="perm-state-label ' + catLabelClass + '"><span class="perm-dot">●</span> ' + catLabelText + '</span>';
           html += '<span class="perm-tri-group">';
@@ -4376,7 +4377,6 @@
           html += '<span class="perm-tri-btn' + ((agg !== 'denyAll' && agg !== 'all') || (isGroupMode && agg !== 'all') ? ' is-active' : '') + '" data-action="default" data-cat-id="' + catId + '" onclick="event.stopPropagation();toggleAllBmsInCat(\'' + catId + '\',\'' + targetId + '\',\'default\')" style="color:' + defaultBtnColor + '" title="' + (catInherit ? '有继承分组权限' : '无继承分组权限') + '"><span class="perm-dot">' + defaultDot + '</span> 默认</span>';
           html += '</span>';
         }
-        html += '<span style="flex:1;font-size:13px;color:var(--text-primary);font-weight:500">📁 ' + catLabel + '</span>';
         html += '</div>';
         
         html += '<div class="perm-cat-items" data-cat-id="' + catId + '" style="padding-left:20px;' + (isExpanded ? '' : 'display:none') + '">';
