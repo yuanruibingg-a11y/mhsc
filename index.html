@@ -1049,7 +1049,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.3</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.16.4</div>
     </div>
   </aside>
 
@@ -1130,6 +1130,14 @@
         <label>可见范围（不勾选则全部可见）</label>
       </div>
       <div id="catVisibilityContainer" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div class="views-section" id="catCopySection" style="margin-top:8px;padding:10px;background:var(--bg-surface);border-radius:8px;border:1px solid var(--border)">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-bottom:8px;color:var(--text-primary)">
+        <input type="checkbox" id="catAllowCopy" style="accent-color:var(--accent)"> 启用一键复制网址
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text-muted);margin-left:22px">
+        <input type="checkbox" id="catNoDirectOpen" style="accent-color:var(--accent)"> 点击卡片不直接打开（仅复制模式）
+      </label>
     </div>
     <div class="form-actions">
       <button class="btn btn-cancel" onclick="closeModal('categoryModal')">取消</button>
@@ -2060,6 +2068,29 @@
 
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+  function copyUrlToClipboard(url) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function() {
+        showToast('已复制链接');
+      }).catch(function() {
+        fallbackCopy(url);
+      });
+    } else {
+      fallbackCopy(url);
+    }
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('已复制链接');
+    }
+  }
+
   function getCategoryCount(catId) {
     return state.bookmarks.filter(b => b.categoryId === catId).length;
   }
@@ -2453,6 +2484,8 @@
         const favicon = bm.customIcon || getFavicon(bm.url);
         const faviconSrc = favicon || getDefaultIcon(bm.url, cat ? cat.icon.slice(0,1) : '🔗');
         const isStarred = state.starred.includes(bm.id);
+        const catAllowCopy = cat && cat.allowCopy;
+        const catNoDirectOpen = cat && cat.noDirectOpen;
         const viewsHtml = (bm.views && bm.views.length > 0)
           ? `<div class="bm-views">${bm.views.slice(0, 6).map(v => `<span class="bm-view-tag" data-view-url="${escapeHtml(v.url)}">${escapeHtml(v.name)}</span>`).join('')}</div>`
           : '';
@@ -2493,7 +2526,7 @@
                      container.appendChild(img);
                    "`;
         return `
-          <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}">
+          <div class="bookmark-card ${isStarred ? 'starred' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}"${catNoDirectOpen ? ' data-no-direct-open="1"' : ''}>
             ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
             <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
             <div class="bm-icon" id="bm-icon-${bm.id}">
@@ -2505,9 +2538,10 @@
               <div class="bm-url">${escapeHtml(bm.url)}</div>
               ${viewsHtml}
             </div>
-            ${isEditing ? `<div class="bm-card-actions">
-              <button class="bm-card-btn edit-btn" data-id="${bm.id}" title="编辑">✎</button>
-              <button class="bm-card-btn danger delete-btn" data-id="${bm.id}" title="删除">✕</button>
+            ${(isEditing || catAllowCopy) ? `<div class="bm-card-actions">
+              ${isEditing ? `<button class="bm-card-btn edit-btn" data-id="${bm.id}" title="编辑">✎</button>
+              <button class="bm-card-btn danger delete-btn" data-id="${bm.id}" title="删除">✕</button>` : ''}
+              ${catAllowCopy ? `<button class="bm-card-btn copy-btn" data-copy-url="${escapeHtml(bm.url)}" title="复制链接">📋</button>` : ''}
             </div>` : ''}
           </div>
         `;
@@ -2517,7 +2551,20 @@
     document.querySelectorAll('.bookmark-card').forEach(card => {
       card.addEventListener('click', () => {
         const url = card.dataset.url;
-        if (url) window.open(url, '_blank');
+        if (!url) return;
+        if (card.dataset.noDirectOpen === '1') {
+          copyUrlToClipboard(url);
+        } else {
+          window.open(url, '_blank');
+        }
+      });
+    });
+
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const url = btn.dataset.copyUrl;
+        if (url) copyUrlToClipboard(url);
       });
     });
 
@@ -2525,7 +2572,13 @@
       tag.addEventListener('click', (e) => {
         e.stopPropagation();
         const url = tag.dataset.viewUrl;
-        if (url) window.open(url, '_blank');
+        if (!url) return;
+        const card = tag.closest('.bookmark-card');
+        if (card && card.dataset.noDirectOpen === '1') {
+          copyUrlToClipboard(url);
+        } else {
+          window.open(url, '_blank');
+        }
       });
     });
 
@@ -2817,11 +2870,17 @@
           if (cat.visibleTo.includes(cb.value)) cb.checked = true;
         });
       }
+
+      document.getElementById('catAllowCopy').checked = cat.allowCopy === true;
+      document.getElementById('catNoDirectOpen').checked = cat.noDirectOpen === true;
     } else {
       title.textContent = '新建分类';
       nameInput.value = '';
       iconInput.value = '📁';
       editId.value = '';
+
+      document.getElementById('catAllowCopy').checked = false;
+      document.getElementById('catNoDirectOpen').checked = false;
       
       // 设置默认分组
       const groupSelect = document.getElementById('categoryGroup');
@@ -2852,6 +2911,17 @@
       const groupCats = state.categories.filter(c => c.groupId === groupId);
       const maxOrder = groupCats.reduce((max, c) => Math.max(max, c.sortOrder ?? -1), -1);
       state.categories.push({ id: genId(), name, icon, groupId, sortOrder: maxOrder + 1 });
+    }
+
+    const allowCopy = document.getElementById('catAllowCopy').checked;
+    const noDirectOpen = document.getElementById('catNoDirectOpen').checked;
+    if (editId) {
+      const cat = state.categories.find(c => c.id === editId);
+      if (cat) { cat.allowCopy = allowCopy; cat.noDirectOpen = noDirectOpen; }
+    } else {
+      const newCat = state.categories[state.categories.length - 1];
+      newCat.allowCopy = allowCopy;
+      newCat.noDirectOpen = noDirectOpen;
     }
 
     if (isAdmin()) {
