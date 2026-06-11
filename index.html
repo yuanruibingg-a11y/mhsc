@@ -449,7 +449,7 @@
     top: 0;
     background: var(--header-bg);
     backdrop-filter: blur(12px);
-    z-index: 5;
+    z-index: 50;
   }
 
   .main-header-left { display: flex; align-items: center; gap: 16px; }
@@ -639,6 +639,51 @@
   }
   .bm-card-btn:hover { background: var(--bg-card); color: var(--text-primary); }
   .bm-card-btn.danger:hover { color: var(--danger); background: rgba(224,96,96,0.1); }
+
+  .batch-toolbar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    animation: slideDown 0.2s ease;
+    flex-wrap: wrap;
+  }
+  .batch-toolbar.show { display: flex; }
+  .batch-toolbar .batch-count { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+  .batch-toolbar select { flex: 1; max-width: 240px; }
+  .batch-toolbar .btn { white-space: nowrap; }
+
+  .bookmark-card.batch-selectable { cursor: default; user-select: none; }
+  .bookmark-card.batch-selectable:hover { transform: none; box-shadow: none; }
+  .bookmark-card .batch-checkbox {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 20px;
+    height: 20px;
+    z-index: 5;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .bookmark-card.batch-selected {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-glow) !important;
+    background: var(--bg-card-hover);
+  }
+  .bookmark-card.batch-selected .batch-checkbox { display: block; }
+
+  .batch-select-zone {
+    position: fixed;
+    border: 1px dashed var(--accent);
+    background: rgba(99,102,241,0.08);
+    pointer-events: none;
+    z-index: 50;
+    display: none;
+  }
 
   .modal-overlay {
     position: fixed;
@@ -1134,7 +1179,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.17.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.18.6</div>
     </div>
   </aside>
 
@@ -1150,9 +1195,16 @@
           <input type="text" id="searchInput" placeholder="搜索收藏..." oninput="renderBookmarks()">
         </div>
         <button class="btn btn-primary editing-only" onclick="openBookmarkModal()">+ 添加</button>
+        <button class="btn btn-sm editing-only" id="batchClassifyBtn" onclick="enterBatchSelectMode()" title="批量分类">📋 批量分类</button>
         <button class="edit-toggle-btn" id="editToggleBtn" onclick="toggleEditMode()" title="编辑模式">✎</button>
       </div>
     </header>
+    <div class="batch-toolbar" id="batchToolbar">
+      <span class="batch-count" id="batchCount">已选中 0 个</span>
+      <select id="batchCategorySelect"></select>
+      <button class="btn btn-primary btn-sm" onclick="applyBatchClassify()">📁 移动到该分类</button>
+      <button class="btn btn-sm" onclick="exitBatchSelectMode()">取消</button>
+    </div>
     <div class="content" id="contentArea"></div>
   </main>
 </div>
@@ -1669,7 +1721,9 @@
     currentUser: null,
     collapsedCats: [],
     collapsedGroups: [],
-    starred: []
+    starred: [],
+    batchSelectMode: false,
+    batchSelectedIds: new Set()
   };
   let confirmCallback = null;
 
@@ -2298,6 +2352,7 @@
     const allCount = state.bookmarks.length;
     const starredCount = state.starred.length;
     const isEditing = document.body.classList.contains('editing');
+    const isBatch = state.batchSelectMode;
     
     // 确保分组和分类有 sortOrder
     state.groups.forEach((g, idx) => { if (g.sortOrder === undefined) g.sortOrder = idx; });
@@ -2597,6 +2652,7 @@
     });
 
     const isEditing = document.body.classList.contains('editing');
+    const isBatch = state.batchSelectMode;
 
     area.innerHTML = `<div class="bookmarks-grid" id="bookmarksGrid">${
       items.map(bm => {
@@ -2606,6 +2662,7 @@
         const isStarred = state.starred.includes(bm.id);
         const catAllowCopy = cat && cat.allowCopy;
         const catNoDirectOpen = cat && cat.noDirectOpen;
+        const batchSelected = isBatch && state.batchSelectedIds.has(bm.id);
         const viewsHtml = (bm.views && bm.views.length > 0)
           ? `<div class="bm-views">${bm.views.slice(0, 6).map(v => `<span class="bm-view-tag" data-view-url="${escapeHtml(v.url)}">${escapeHtml(v.name)}</span>`).join('')}</div>`
           : '';
@@ -2646,7 +2703,8 @@
                      container.appendChild(img);
                    "`;
         return `
-          <div class="bookmark-card ${isStarred ? 'starred' : ''}${catAllowCopy ? ' allow-copy' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}"${catNoDirectOpen ? ' data-no-direct-open="1"' : ''}>
+          <div class="bookmark-card ${isStarred ? 'starred' : ''}${catAllowCopy ? ' allow-copy' : ''}${isBatch ? ' batch-selectable' : ''}${batchSelected ? ' batch-selected' : ''}" ${isEditing ? 'draggable="true"' : ''} data-bookmark-id="${bm.id}" data-url="${escapeHtml(bm.url)}"${catNoDirectOpen ? ' data-no-direct-open="1"' : ''}>
+            ${isBatch ? `<input type="checkbox" class="batch-checkbox" ${batchSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleBatchSelect('${bm.id}')">` : ''}
             ${isEditing ? '<div class="drag-handle" draggable="false">⠿</div>' : ''}
             <button class="star-btn ${isStarred ? 'starred' : ''}" data-star-id="${bm.id}" title="${isStarred ? '取消星标' : '加星标'}">${isStarred ? '★' : '☆'}</button>
             <div class="bm-icon" id="bm-icon-${bm.id}">
@@ -2658,7 +2716,7 @@
               <div class="bm-url">${escapeHtml(bm.url)}</div>
               ${viewsHtml}
             </div>
-            ${(isEditing || catAllowCopy) ? `<div class="bm-card-actions">
+            ${(!isBatch && (isEditing || catAllowCopy)) ? `<div class="bm-card-actions">
               ${isEditing ? `<button class="bm-card-btn edit-btn" data-id="${bm.id}" title="编辑">✎</button>
               <button class="bm-card-btn danger delete-btn" data-id="${bm.id}" title="删除">✕</button>` : ''}
               ${catAllowCopy ? `<button class="bm-card-btn copy-btn" data-copy-url="${escapeHtml(bm.url)}" title="复制链接">📋</button>` : ''}
@@ -2670,6 +2728,10 @@
 
     document.querySelectorAll('.bookmark-card').forEach(card => {
       card.addEventListener('click', () => {
+        if (state.batchSelectMode) {
+          toggleBatchSelect(card.dataset.bookmarkId);
+          return;
+        }
         const url = card.dataset.url;
         if (!url) return;
         if (card.dataset.noDirectOpen === '1') {
@@ -2773,6 +2835,150 @@
     div.textContent = text;
     return div.innerHTML;
   }
+
+  function enterBatchSelectMode() {
+    state.batchSelectMode = true;
+    state.batchSelectedIds = new Set();
+    document.getElementById('batchToolbar').classList.add('show');
+    document.getElementById('batchClassifyBtn').style.display = 'none';
+    populateBatchCategorySelect();
+    renderBookmarks();
+  }
+
+  function exitBatchSelectMode() {
+    state.batchSelectMode = false;
+    state.batchSelectedIds = new Set();
+    document.getElementById('batchToolbar').classList.remove('show');
+    document.getElementById('batchClassifyBtn').style.display = '';
+    renderBookmarks();
+  }
+
+  function toggleBatchSelect(bookmarkId) {
+    if (!state.batchSelectMode) return;
+    if (state.batchSelectedIds.has(bookmarkId)) {
+      state.batchSelectedIds.delete(bookmarkId);
+    } else {
+      state.batchSelectedIds.add(bookmarkId);
+    }
+    updateBatchCount();
+    highlightBatchCards();
+  }
+
+  function updateBatchCount() {
+    const el = document.getElementById('batchCount');
+    if (el) el.textContent = '已选中 ' + state.batchSelectedIds.size + ' 个';
+  }
+
+  function highlightBatchCards() {
+    document.querySelectorAll('.bookmark-card').forEach(card => {
+      const id = card.dataset.bookmarkId;
+      const cb = card.querySelector('.batch-checkbox');
+      if (state.batchSelectedIds.has(id)) {
+        card.classList.add('batch-selected');
+        if (cb) cb.checked = true;
+      } else {
+        card.classList.remove('batch-selected');
+        if (cb) cb.checked = false;
+      }
+    });
+  }
+
+  function populateBatchCategorySelect() {
+    const sel = document.getElementById('batchCategorySelect');
+    sel.innerHTML = state.categories.map(c =>
+      '<option value="' + c.id + '">' + (c.icon || '📁') + ' ' + c.name + '</option>'
+    ).join('');
+  }
+
+  async function applyBatchClassify() {
+    if (state.batchSelectedIds.size === 0) {
+      showToast('请至少选中一个收藏');
+      return;
+    }
+    const targetCatId = document.getElementById('batchCategorySelect').value;
+    if (!targetCatId) { showToast('请选择目标分类'); return; }
+    const targetCat = state.categories.find(c => c.id === targetCatId);
+    if (!targetCat) { showToast('分类不存在'); return; }
+
+    const count = state.batchSelectedIds.size;
+    state.batchSelectedIds.forEach(function(id) {
+      var bm = state.bookmarks.find(function(b) { return b.id === id; });
+      if (bm) bm.categoryId = targetCatId;
+    });
+
+    showToast('正在保存...');
+    saveUserData();
+    var db = getDbSync();
+    await saveDb(db);
+
+    exitBatchSelectMode();
+    renderBookmarks();
+    renderCategories();
+    showToast('已移动 ' + count + ' 个收藏到「' + targetCat.name + '」');
+  }
+
+  var batchBoxSelect = { active: false, startX: 0, startY: 0 };
+  function onBatchBoxMouseDown(e) {
+    if (!state.batchSelectMode) return;
+    var card = e.target.closest('.bookmark-card');
+    if (card) return;
+    batchBoxSelect.active = true;
+    batchBoxSelect.startX = e.clientX;
+    batchBoxSelect.startY = e.clientY;
+    var zone = document.getElementById('batchSelectZone') || createBatchSelectZone();
+    zone.style.display = 'block';
+    zone.style.left = batchBoxSelect.startX + 'px';
+    zone.style.top = batchBoxSelect.startY + 'px';
+    zone.style.width = '0px';
+    zone.style.height = '0px';
+  }
+  function onBatchBoxMouseMove(e) {
+    if (!batchBoxSelect.active) return;
+    var zone = document.getElementById('batchSelectZone');
+    if (!zone) return;
+    var x1 = Math.min(batchBoxSelect.startX, e.clientX);
+    var y1 = Math.min(batchBoxSelect.startY, e.clientY);
+    var x2 = Math.max(batchBoxSelect.startX, e.clientX);
+    var y2 = Math.max(batchBoxSelect.startY, e.clientY);
+    zone.style.left = x1 + 'px';
+    zone.style.top = y1 + 'px';
+    zone.style.width = (x2 - x1) + 'px';
+    zone.style.height = (y2 - y1) + 'px';
+  }
+  function onBatchBoxMouseUp(e) {
+    if (!batchBoxSelect.active) return;
+    batchBoxSelect.active = false;
+    var zone = document.getElementById('batchSelectZone');
+    if (zone) zone.style.display = 'none';
+    var rect = {
+      left: Math.min(batchBoxSelect.startX, e.clientX),
+      top: Math.min(batchBoxSelect.startY, e.clientY),
+      right: Math.max(batchBoxSelect.startX, e.clientX),
+      bottom: Math.max(batchBoxSelect.startY, e.clientY)
+    };
+    var dx = rect.right - rect.left;
+    var dy = rect.bottom - rect.top;
+    if (dx < 5 && dy < 5) return;
+    var cards = document.querySelectorAll('.bookmark-card');
+    cards.forEach(function(card) {
+      var cr = card.getBoundingClientRect();
+      if (cr.right > rect.left && cr.left < rect.right && cr.bottom > rect.top && cr.top < rect.bottom) {
+        state.batchSelectedIds.add(card.dataset.bookmarkId);
+      }
+    });
+    updateBatchCount();
+    highlightBatchCards();
+  }
+  function createBatchSelectZone() {
+    var div = document.createElement('div');
+    div.id = 'batchSelectZone';
+    div.className = 'batch-select-zone';
+    document.body.appendChild(div);
+    return div;
+  }
+  document.addEventListener('mousedown', onBatchBoxMouseDown);
+  document.addEventListener('mousemove', onBatchBoxMouseMove);
+  document.addEventListener('mouseup', onBatchBoxMouseUp);
 
   function openBookmarkModal(id) {
     const modal = document.getElementById('bookmarkModal');
@@ -3024,6 +3230,11 @@
     if (!name) { showToast('请输入分类名称'); return; }
     if (!groupId && state.groups.length > 0) { groupId = state.groups[0].id; }
 
+    if (!editId) {
+      const dup = state.categories.find(c => c.name === name);
+      if (dup) { showToast('分类名称已存在，请使用其他名称'); return; }
+    }
+
     if (editId) {
       const cat = state.categories.find(c => c.id === editId);
       if (cat) { cat.name = name; cat.icon = icon; cat.groupId = groupId; }
@@ -3093,6 +3304,11 @@
     const editId = document.getElementById('editGroupId').value;
 
     if (!name) { showToast('请输入分组名称'); return; }
+
+    if (!editId) {
+      const dup = state.groups.find(g => g.name === name);
+      if (dup) { showToast('分组名称已存在，请使用其他名称'); return; }
+    }
 
     if (editId) {
       const group = state.groups.find(g => g.id === editId);
@@ -3504,6 +3720,7 @@
       const btn = document.getElementById('editToggleBtn');
       btn.textContent = '✎';
       btn.title = '编辑模式';
+      if (state.batchSelectMode) exitBatchSelectMode();
       renderCategories();
       renderBookmarks();
       showToast('已退出编辑模式');
@@ -4250,7 +4467,7 @@
     const errorEl = document.getElementById('editUserError');
     
     const newRole = document.getElementById('editUserRole').value;
-    const password = document.getElementById('editUserPassword').value;
+    const password = document.getElementById('editUserPassword').value.trim();
     
     if (!isCurrentAdmin && newRole !== user.role) {
       errorEl.textContent = '没有权限修改角色';
@@ -4662,6 +4879,8 @@
       const g = db.userData[rootUser].accountGroups.find(g => g.id === currentEditGroupId);
       if (g) g.name = name;
     } else {
+      const dup = db.userData[rootUser].accountGroups.find(g => g.name === name);
+      if (dup) { showToast('分组名称已存在，请使用其他名称'); return; }
       db.userData[rootUser].accountGroups.push({ id: genId(), name, leader: null });
     }
     cachedDb = null;
