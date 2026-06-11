@@ -1239,7 +1239,7 @@
     </div>
     <div class="views-section" id="bookmarkVisibilitySection" style="display:none">
       <div class="views-section-header">
-        <label>可见范围（不勾选则全部可见）</label>
+        <label>可见范围（勾选谁，谁就能看到）</label>
       </div>
       <div id="bookmarkVisibilityContainer" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
@@ -1264,7 +1264,7 @@
     </div>
     <div class="views-section" id="catVisibilitySection" style="display:none">
       <div class="views-section-header">
-        <label>可见范围（不勾选则全部可见）</label>
+        <label>可见范围（勾选谁，谁就能看到）</label>
       </div>
       <div id="catVisibilityContainer" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
@@ -3051,7 +3051,7 @@
       const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
       const accountGroups = (rootU2 && db2.userData[rootU2]?.accountGroups) || [];
       const users = getUserList();
-      var sortedUsers = users.slice().sort(function(a, b) {
+      var sortedUsers = users.slice().filter(function(u) { return u.role !== 'root'; }).sort(function(a, b) {
         var aSelf = a.username === state.currentUser ? 0 : 1;
         var bSelf = b.username === state.currentUser ? 0 : 1;
         if (aSelf !== bSelf) return aSelf - bSelf;
@@ -3060,7 +3060,17 @@
         if (aAdmin !== bAdmin) return aAdmin - bAdmin;
         return a.username.localeCompare(b.username);
       });
-      var visHtml = sortedUsers.map(function(u) {
+      var visHtml = '';
+      if (accountGroups.length > 0) {
+        visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:2px 0 4px">━━ 账号分组 ━━</div>';
+        visHtml += accountGroups.map(g => `
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+            <input type="checkbox" class="vis-group-checkbox" value="group:${g.id}" style="accent-color:var(--accent)"> ${g.name}
+          </label>
+        `).join('');
+      }
+      visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:8px 0 2px">━━ 个人用户 ━━</div>';
+      visHtml += sortedUsers.map(function(u) {
         var isSelf = u.username === state.currentUser;
         var isAdminRole = u.role === 'admin' || u.role === 'root';
         var defaultChecked = !id && isSelf ? 'checked' : '';
@@ -3074,14 +3084,6 @@
           </label>
         `;
       }).join('');
-      if (accountGroups.length > 0) {
-        visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:4px 0 2px">━━ 账号分组 ━━</div>';
-        visHtml += accountGroups.map(g => `
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
-            <input type="checkbox" class="vis-group-checkbox" value="group:${g.id}" style="accent-color:var(--accent)"> ${g.name}
-          </label>
-        `).join('');
-      }
       visContainer.innerHTML = visHtml;
       visSection.style.display = users.length > 0 || accountGroups.length > 0 ? '' : 'none';
     } else {
@@ -3296,7 +3298,7 @@
       const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
       const accountGroups = (rootU2 && db2.userData[rootU2]?.accountGroups) || [];
       const users = getUserList();
-      var sortedUsers = users.slice().sort(function(a, b) {
+      var sortedUsers = users.slice().filter(function(u) { return u.role !== 'root'; }).sort(function(a, b) {
         var aSelf = a.username === state.currentUser ? 0 : 1;
         var bSelf = b.username === state.currentUser ? 0 : 1;
         if (aSelf !== bSelf) return aSelf - bSelf;
@@ -3305,7 +3307,17 @@
         if (aAdmin !== bAdmin) return aAdmin - bAdmin;
         return a.username.localeCompare(b.username);
       });
-      var visHtml = sortedUsers.map(function(u) {
+      var visHtml = '';
+      if (accountGroups.length > 0) {
+        visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:2px 0 4px">━━ 账号分组 ━━</div>';
+        visHtml += accountGroups.map(g => `
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+            <input type="checkbox" class="cat-vis-group-checkbox" value="group:${g.id}" style="accent-color:var(--accent)"> ${g.name}
+          </label>
+        `).join('');
+      }
+      visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:8px 0 2px">━━ 个人用户 ━━</div>';
+      visHtml += sortedUsers.map(function(u) {
         var isSelf = u.username === state.currentUser;
         var isAdminRole = u.role === 'admin' || u.role === 'root';
         var label = u.username;
@@ -3318,14 +3330,6 @@
           </label>
         `;
       }).join('');
-      if (accountGroups.length > 0) {
-        visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:4px 0 2px">━━ 账号分组 ━━</div>';
-        visHtml += accountGroups.map(g => `
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
-            <input type="checkbox" class="cat-vis-group-checkbox" value="group:${g.id}" style="accent-color:var(--accent)"> ${g.name}
-          </label>
-        `).join('');
-      }
       visContainer.innerHTML = visHtml;
       visSection.style.display = users.length > 0 || accountGroups.length > 0 ? '' : 'none';
     } else {
