@@ -1179,7 +1179,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.18.6</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.0</div>
     </div>
   </aside>
 
@@ -2213,17 +2213,42 @@
 
   function saveUserData() {
     const db = getDbSync();
-    if (state.currentUser) {
-      const user = db.users[state.currentUser];
-      if (user && (user.role === 'admin' || user.role === 'root')) {
-        var existing = db.userData[state.currentUser] || {};
-        existing.groups = state.groups;
-        existing.categories = state.categories;
-        existing.bookmarks = state.bookmarks;
-        db.userData[state.currentUser] = existing;
-        saveDb(db);
-      }
-    }
+    if (!state.currentUser) return;
+    const user = db.users[state.currentUser];
+    if (!user || (user.role !== 'admin' && user.role !== 'root')) return;
+
+    const allUsers = Object.keys(db.users);
+    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
+    const targetUser = rootUser || state.currentUser;
+
+    var existing = db.userData[targetUser] || {};
+
+    var mergedGroups = existing.groups ? existing.groups.slice() : [];
+    state.groups.forEach(function(sg) {
+      var idx = mergedGroups.findIndex(function(g) { return g.id === sg.id; });
+      if (idx >= 0) mergedGroups[idx] = sg;
+      else mergedGroups.push(sg);
+    });
+
+    var mergedCats = existing.categories ? existing.categories.slice() : [];
+    state.categories.forEach(function(sc) {
+      var idx = mergedCats.findIndex(function(c) { return c.id === sc.id; });
+      if (idx >= 0) mergedCats[idx] = sc;
+      else mergedCats.push(sc);
+    });
+
+    var mergedBms = existing.bookmarks ? existing.bookmarks.slice() : [];
+    state.bookmarks.forEach(function(sb) {
+      var idx = mergedBms.findIndex(function(b) { return b.id === sb.id; });
+      if (idx >= 0) mergedBms[idx] = sb;
+      else mergedBms.push(sb);
+    });
+
+    existing.groups = mergedGroups;
+    existing.categories = mergedCats;
+    existing.bookmarks = mergedBms;
+    db.userData[targetUser] = existing;
+    saveDb(db);
   }
 
   function isAdmin() {
@@ -3000,13 +3025,29 @@
     const visSection = document.getElementById('bookmarkVisibilitySection');
     const visContainer = document.getElementById('bookmarkVisibilityContainer');
     if (isAdminUser) {
-      const users = getUserList().filter(u => u.username !== state.currentUser);
-      visContainer.innerHTML = users.map(u => `
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
-          <input type="checkbox" class="vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${u.username}
-        </label>
-      `).join('');
-      visSection.style.display = users.length > 0 ? '' : 'none';
+      const db2 = getDbSync();
+      const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
+      const accountGroups = (rootU2 && db2.userData[rootU2]?.accountGroups) || [];
+      const users = getUserList();
+      var visHtml = users.map(u => {
+        const isSelf = u.username === state.currentUser;
+        const defaultChecked = !id && isSelf ? 'checked' : '';
+        return `
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+            <input type="checkbox" class="vis-checkbox" value="${u.username}" style="accent-color:var(--accent)" ${defaultChecked}> ${u.username}${isSelf ? '（自己）' : ''}
+          </label>
+        `;
+      }).join('');
+      if (accountGroups.length > 0) {
+        visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:4px 0 2px">━━ 账号分组 ━━</div>';
+        visHtml += accountGroups.map(g => `
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+            <input type="checkbox" class="vis-group-checkbox" value="group:${g.id}" style="accent-color:var(--accent)"> ${g.name}
+          </label>
+        `).join('');
+      }
+      visContainer.innerHTML = visHtml;
+      visSection.style.display = users.length > 0 || accountGroups.length > 0 ? '' : 'none';
     } else {
       visSection.style.display = 'none';
     }
@@ -3021,10 +3062,27 @@
       catSelect.value = bm.categoryId;
       editId.value = id;
       (bm.views || []).forEach(v => addViewRow(v));
-      if (isAdminUser && bm.visibleTo) {
-        visContainer.querySelectorAll('.vis-checkbox').forEach(cb => {
-          if (bm.visibleTo.includes(cb.value)) cb.checked = true;
+      if (isAdminUser) {
+        const db3 = getDbSync();
+        const rootU3 = Object.keys(db3.users).find(u => db3.users[u]?.role === 'root');
+        const perms = (rootU3 && db3.userData[rootU3]?.permissions) || {};
+        visContainer.querySelectorAll('.vis-checkbox, .vis-group-checkbox').forEach(function(cb) {
+          var val = cb.value;
+          var hasPerm = false;
+          if (val.startsWith('group:')) {
+            var gp = perms[val];
+            hasPerm = gp && gp.bookmarks && gp.bookmarks.includes(id);
+          } else {
+            var up = perms[val];
+            hasPerm = up && up.allow && up.allow.bookmarks && up.allow.bookmarks.includes(id);
+          }
+          if (hasPerm) cb.checked = true;
         });
+        if (bm.visibleTo) {
+          visContainer.querySelectorAll('.vis-checkbox').forEach(cb => {
+            if (bm.visibleTo.includes(cb.value)) cb.checked = true;
+          });
+        }
       }
     } else {
       title.textContent = '添加收藏';
@@ -3073,26 +3131,58 @@
       }
     } else {
       const maxOrder = state.bookmarks.reduce((max, b) => Math.max(max, b.sortOrder ?? 0), -1);
+      const newId = genId();
       state.bookmarks.push({ 
-        id: genId(), 
+        id: newId, 
         name, 
         url, 
         customIcon: customIcon || undefined, 
         views, 
         categoryId, 
         sortOrder: maxOrder + 1, 
-        createdAt: Date.now() 
+        createdAt: Date.now(),
+        createdBy: state.currentUser
       });
     }
 
     if (isAdmin()) {
-      const checked = [];
-      document.querySelectorAll('.vis-checkbox:checked').forEach(cb => checked.push(cb.value));
-      if (editId) {
-        const bm = state.bookmarks.find(b => b.id === editId);
-        if (bm) bm.visibleTo = checked.length > 0 ? checked : undefined;
-      } else {
-        state.bookmarks[state.bookmarks.length - 1].visibleTo = checked.length > 0 ? checked : undefined;
+      const bmId = editId || state.bookmarks[state.bookmarks.length - 1].id;
+      const checkedUsers = [];
+      const checkedGroups = [];
+      document.querySelectorAll('.vis-checkbox:checked').forEach(cb => checkedUsers.push(cb.value));
+      document.querySelectorAll('.vis-group-checkbox:checked').forEach(cb => checkedGroups.push(cb.value));
+      const db2 = getDbSync();
+      const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
+      if (rootU2) {
+        if (!db2.userData[rootU2].permissions) db2.userData[rootU2].permissions = {};
+        var perms = db2.userData[rootU2].permissions;
+        // Remove bmId from all permissions first (clean rebuild)
+        for (var key in perms) {
+          var p = perms[key];
+          if (p.bookmarks) p.bookmarks = p.bookmarks.filter(function(id) { return id !== bmId; });
+          if (p.allow && p.allow.bookmarks) p.allow.bookmarks = p.allow.bookmarks.filter(function(id) { return id !== bmId; });
+        }
+        // Add to checked users
+        checkedUsers.forEach(function(uname) {
+          if (!perms[uname]) perms[uname] = { allow: { categories: [], bookmarks: [] }, deny: { categories: [], bookmarks: [] } };
+          if (!perms[uname].allow) perms[uname].allow = { categories: [], bookmarks: [] };
+          if (!perms[uname].allow.bookmarks) perms[uname].allow.bookmarks = [];
+          if (!perms[uname].allow.bookmarks.includes(bmId)) perms[uname].allow.bookmarks.push(bmId);
+        });
+        // Add to checked groups
+        checkedGroups.forEach(function(gkey) {
+          if (!perms[gkey]) perms[gkey] = { categories: [], bookmarks: [] };
+          if (!perms[gkey].bookmarks) perms[gkey].bookmarks = [];
+          if (!perms[gkey].bookmarks.includes(bmId)) perms[gkey].bookmarks.push(bmId);
+        });
+        // Clean up empty entries
+        for (var key in perms) {
+          var p = perms[key];
+          if (p.bookmarks && p.bookmarks.length === 0) delete p.bookmarks;
+          if (p.allow && p.allow.bookmarks && p.allow.bookmarks.length === 0) delete p.allow.bookmarks;
+          if (p.allow && Object.keys(p.allow).every(function(k) { return !p.allow[k] || p.allow[k].length === 0; })) delete p.allow;
+          if (Object.keys(p).length === 0) delete perms[key];
+        }
       }
     }
 
@@ -3166,13 +3256,27 @@
     }
 
     if (isAdmin()) {
-      const users = getUserList().filter(u => u.username !== state.currentUser);
-      visContainer.innerHTML = users.map(u => `
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
-          <input type="checkbox" class="cat-vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${u.username}
-        </label>
-      `).join('');
-      visSection.style.display = users.length > 0 ? '' : 'none';
+      const db2 = getDbSync();
+      const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
+      const accountGroups = (rootU2 && db2.userData[rootU2]?.accountGroups) || [];
+      const users = getUserList();
+      var visHtml = users.map(u => {
+        return `
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+            <input type="checkbox" class="cat-vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${u.username}
+          </label>
+        `;
+      }).join('');
+      if (accountGroups.length > 0) {
+        visHtml += '<div style="width:100%;font-size:11px;color:var(--text-muted);margin:4px 0 2px">━━ 账号分组 ━━</div>';
+        visHtml += accountGroups.map(g => `
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
+            <input type="checkbox" class="cat-vis-group-checkbox" value="group:${g.id}" style="accent-color:var(--accent)"> ${g.name}
+          </label>
+        `).join('');
+      }
+      visContainer.innerHTML = visHtml;
+      visSection.style.display = users.length > 0 || accountGroups.length > 0 ? '' : 'none';
     } else {
       visSection.style.display = 'none';
     }
@@ -3191,10 +3295,27 @@
         groupSelect.value = cat.groupId;
       }
       
-      if (isAdmin() && cat.visibleTo) {
-        visContainer.querySelectorAll('.cat-vis-checkbox').forEach(cb => {
-          if (cat.visibleTo.includes(cb.value)) cb.checked = true;
+      if (isAdmin()) {
+        const db3 = getDbSync();
+        const rootU3 = Object.keys(db3.users).find(u => db3.users[u]?.role === 'root');
+        const perms = (rootU3 && db3.userData[rootU3]?.permissions) || {};
+        visContainer.querySelectorAll('.cat-vis-checkbox, .cat-vis-group-checkbox').forEach(function(cb) {
+          var val = cb.value;
+          var hasPerm = false;
+          if (val.startsWith('group:')) {
+            var gp = perms[val];
+            hasPerm = gp && gp.categories && gp.categories.includes(id);
+          } else {
+            var up = perms[val];
+            hasPerm = up && up.allow && up.allow.categories && up.allow.categories.includes(id);
+          }
+          if (hasPerm) cb.checked = true;
         });
+        if (cat.visibleTo) {
+          visContainer.querySelectorAll('.cat-vis-checkbox').forEach(cb => {
+            if (cat.visibleTo.includes(cb.value)) cb.checked = true;
+          });
+        }
       }
 
       document.getElementById('catAllowCopy').checked = cat.allowCopy === true;
@@ -3256,13 +3377,32 @@
     }
 
     if (isAdmin()) {
-      const checked = [];
-      document.querySelectorAll('.cat-vis-checkbox:checked').forEach(cb => checked.push(cb.value));
-      if (editId) {
-        const cat = state.categories.find(c => c.id === editId);
-        if (cat) cat.visibleTo = checked.length > 0 ? checked : undefined;
-      } else {
-        state.categories[state.categories.length - 1].visibleTo = checked.length > 0 ? checked : undefined;
+      const checkedUsers = [];
+      const checkedGroups = [];
+      document.querySelectorAll('.cat-vis-checkbox:checked').forEach(cb => checkedUsers.push(cb.value));
+      document.querySelectorAll('.cat-vis-group-checkbox:checked').forEach(cb => checkedGroups.push(cb.value));
+      const catId = editId || state.categories[state.categories.length - 1].id;
+      const db2 = getDbSync();
+      const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
+      if (rootU2) {
+        if (!db2.userData[rootU2].permissions) db2.userData[rootU2].permissions = {};
+        var perms = db2.userData[rootU2].permissions;
+        for (var key in perms) {
+          var p = perms[key];
+          if (p.categories) p.categories = p.categories.filter(function(id) { return id !== catId; });
+          if (p.allow && p.allow.categories) p.allow.categories = p.allow.categories.filter(function(id) { return id !== catId; });
+        }
+        checkedUsers.forEach(function(uname) {
+          if (!perms[uname]) perms[uname] = { allow: { categories: [], bookmarks: [] }, deny: { categories: [], bookmarks: [] } };
+          if (!perms[uname].allow) perms[uname].allow = { categories: [], bookmarks: [] };
+          if (!perms[uname].allow.categories) perms[uname].allow.categories = [];
+          if (!perms[uname].allow.categories.includes(catId)) perms[uname].allow.categories.push(catId);
+        });
+        checkedGroups.forEach(function(gkey) {
+          if (!perms[gkey]) perms[gkey] = { categories: [], bookmarks: [] };
+          if (!perms[gkey].categories) perms[gkey].categories = [];
+          if (!perms[gkey].categories.includes(catId)) perms[gkey].categories.push(catId);
+        });
       }
     }
 
@@ -3347,7 +3487,13 @@
     } else {
       const bm = state.bookmarks.find(b => b.id === id);
       title.textContent = '删除收藏';
-      text.textContent = `确定要删除「${bm ? bm.name : '此项'}」吗？`;
+      var creatorHint = '';
+      if (bm) {
+        creatorHint = bm.createdBy && bm.createdBy !== state.currentUser
+          ? `（此收藏由 ${bm.createdBy} 添加）`
+          : '（此收藏由管理员添加）';
+      }
+      text.textContent = `确定要删除「${bm ? bm.name : '此项'}」吗？${creatorHint}`;
     }
 
     confirmCallback = () => {
