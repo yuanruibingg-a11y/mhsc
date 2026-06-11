@@ -2366,7 +2366,8 @@
       const colors = stringToColor(hostname);
       return generateIconSVG(initial, colors);
     } catch {
-      const initial = (fallbackIcon || '🔗').charAt(0);
+      const safeChars = [...(fallbackIcon || '🔗')].filter(function(ch) { return !/[\uD800-\uDFFF]/.test(ch); });
+      const initial = safeChars.length > 0 ? safeChars[0] : '?';
       const colors = stringToColor(initial);
       return generateIconSVG(initial, colors);
     }
@@ -2683,7 +2684,7 @@
       items.map(bm => {
         const cat = state.categories.find(c => c.id === bm.categoryId);
         const favicon = bm.customIcon || getFavicon(bm.url);
-        const faviconSrc = favicon || getDefaultIcon(bm.url, cat ? cat.icon.slice(0,1) : '🔗');
+        const faviconSrc = favicon || getDefaultIcon(bm.url, cat ? [...cat.icon][0] : '🔗');
         const isStarred = state.starred.includes(bm.id);
         const catAllowCopy = cat && cat.allowCopy;
         const catNoDirectOpen = cat && cat.noDirectOpen;
@@ -2702,7 +2703,7 @@
                      img.style.borderRadius = '8px';
                      img.style.objectFit = 'cover';
                      img.onerror = function() {
-                       const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? cat.icon.slice(0,1) : '🔗'}');
+                       const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? [...cat.icon][0] : '🔗'}');
                        const fallbackImg = document.createElement('img');
                        fallbackImg.src = defaultIcon;
                        fallbackImg.style.width = '100%';
@@ -2717,7 +2718,7 @@
                    "`
           : `onerror="
                      const container = this.parentNode;
-                     const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? cat.icon.slice(0,1) : '🔗'}');
+                     const defaultIcon = getDefaultIcon('${escapeHtml(bm.url)}', '${cat ? [...cat.icon][0] : '🔗'}');
                      const img = document.createElement('img');
                      img.src = defaultIcon;
                      img.style.width = '100%';
