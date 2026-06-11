@@ -1179,7 +1179,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.1</div>
     </div>
   </aside>
 
@@ -1853,8 +1853,29 @@
       cachedDb = db;
       globalDb = db;
       lastCacheTime = now;
-      
-      // 备份到 localStorage
+
+      // 防止 Supabase 旧数据覆盖本地最新数据
+      try {
+        var localRaw = localStorage.getItem('my_collection_data');
+        if (localRaw) {
+          var localDb = JSON.parse(localRaw);
+          var supabaseRootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+          var localRootU = Object.keys(localDb.users).find(function(u) { return localDb.users[u]?.role === 'root'; });
+          if (supabaseRootU && localRootU) {
+            var supabaseRootData = db.userData[supabaseRootU] || {};
+            var localRootData = localDb.userData[localRootU] || {};
+            var supabaseBmCount = (supabaseRootData.bookmarks || []).length;
+            var localBmCount = (localRootData.bookmarks || []).length;
+            if (localBmCount > supabaseBmCount && localBmCount > 0) {
+              console.warn('⚠️ Supabase 数据较旧（' + supabaseBmCount + '条），本地有 ' + localBmCount + '条，使用本地数据');
+              db.userData[supabaseRootU] = localRootData;
+            }
+          }
+        }
+      } catch (mergeErr) {
+        console.warn('⚠️ 合并本地数据失败，使用 Supabase 数据:', mergeErr);
+      }
+
       localStorage.setItem('my_collection_data', JSON.stringify(db));
       
       return db;
@@ -3030,12 +3051,26 @@
       const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
       const accountGroups = (rootU2 && db2.userData[rootU2]?.accountGroups) || [];
       const users = getUserList();
-      var visHtml = users.map(u => {
-        const isSelf = u.username === state.currentUser;
-        const defaultChecked = !id && isSelf ? 'checked' : '';
+      var sortedUsers = users.slice().sort(function(a, b) {
+        var aSelf = a.username === state.currentUser ? 0 : 1;
+        var bSelf = b.username === state.currentUser ? 0 : 1;
+        if (aSelf !== bSelf) return aSelf - bSelf;
+        var aAdmin = (a.role === 'admin' || a.role === 'root') ? 0 : 1;
+        var bAdmin = (b.role === 'admin' || b.role === 'root') ? 0 : 1;
+        if (aAdmin !== bAdmin) return aAdmin - bAdmin;
+        return a.username.localeCompare(b.username);
+      });
+      var visHtml = sortedUsers.map(function(u) {
+        var isSelf = u.username === state.currentUser;
+        var isAdminRole = u.role === 'admin' || u.role === 'root';
+        var defaultChecked = !id && isSelf ? 'checked' : '';
+        var label = u.username;
+        if (isSelf && isAdminRole) label += '（自己·管理员）';
+        else if (isSelf) label += '（自己）';
+        else if (isAdminRole) label += '（管理员）';
         return `
           <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
-            <input type="checkbox" class="vis-checkbox" value="${u.username}" style="accent-color:var(--accent)" ${defaultChecked}> ${u.username}${isSelf ? '（自己）' : ''}
+            <input type="checkbox" class="vis-checkbox" value="${u.username}" style="accent-color:var(--accent)" ${defaultChecked}> ${label}
           </label>
         `;
       }).join('');
@@ -3261,10 +3296,25 @@
       const rootU2 = Object.keys(db2.users).find(u => db2.users[u]?.role === 'root');
       const accountGroups = (rootU2 && db2.userData[rootU2]?.accountGroups) || [];
       const users = getUserList();
-      var visHtml = users.map(u => {
+      var sortedUsers = users.slice().sort(function(a, b) {
+        var aSelf = a.username === state.currentUser ? 0 : 1;
+        var bSelf = b.username === state.currentUser ? 0 : 1;
+        if (aSelf !== bSelf) return aSelf - bSelf;
+        var aAdmin = (a.role === 'admin' || a.role === 'root') ? 0 : 1;
+        var bAdmin = (b.role === 'admin' || b.role === 'root') ? 0 : 1;
+        if (aAdmin !== bAdmin) return aAdmin - bAdmin;
+        return a.username.localeCompare(b.username);
+      });
+      var visHtml = sortedUsers.map(function(u) {
+        var isSelf = u.username === state.currentUser;
+        var isAdminRole = u.role === 'admin' || u.role === 'root';
+        var label = u.username;
+        if (isSelf && isAdminRole) label += '（自己·管理员）';
+        else if (isSelf) label += '（自己）';
+        else if (isAdminRole) label += '（管理员）';
         return `
           <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;background:var(--bg-surface);border-radius:4px;border:1px solid var(--border)">
-            <input type="checkbox" class="cat-vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${u.username}
+            <input type="checkbox" class="cat-vis-checkbox" value="${u.username}" style="accent-color:var(--accent)"> ${label}
           </label>
         `;
       }).join('');
