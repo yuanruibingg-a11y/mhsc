@@ -1179,7 +1179,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.2</div>
     </div>
   </aside>
 
@@ -1913,6 +1913,7 @@
     
     try {
       console.log('☁️ 正在保存到云端...');
+      var saveErrors = [];
       
       // 保存用户 - 逐个保存并处理错误
       for (const username in db.users) {
@@ -1940,11 +1941,13 @@
             
           if (error) {
             console.error('❌ 保存用户失败:', username, error);
+            saveErrors.push('用户 ' + username);
           } else {
             console.log('✅ 用户保存成功:', username);
           }
         } catch (err) {
           console.error('❌ 保存用户异常:', username, err);
+          saveErrors.push('用户 ' + username);
         }
       }
       
@@ -1987,15 +1990,22 @@
             
           if (error) {
             console.error('❌ 保存用户数据失败:', username, error);
+            saveErrors.push('数据:' + username);
           } else {
             console.log('✅ 用户数据保存成功:', username);
           }
         } catch (err) {
           console.error('❌ 保存用户数据异常:', username, err);
+          saveErrors.push('数据:' + username);
         }
       }
       
-      console.log('✅ 数据已保存到云端');
+      if (saveErrors.length > 0) {
+        console.warn('⚠️ 以下数据保存到云端失败: ' + saveErrors.join(', '));
+        showToast('⚠️ 部分数据未同步到云端（' + saveErrors.length + '项），可尝试刷新后重试');
+      } else {
+        console.log('✅ 数据已保存到云端');
+      }
       
     } catch (e) {
       console.error('❌ 保存到 Supabase 失败:', e);
@@ -2027,6 +2037,12 @@
       try {
         const data = JSON.parse(e.target.result);
         if (data.users && data.userData) {
+          // 自动备份当前数据到 localStorage
+          try {
+            var backupKey = 'my_collection_data_backup_' + new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+            localStorage.setItem(backupKey, localStorage.getItem('my_collection_data') || '');
+            showToast('当前数据已备份，可在localStorage中找到 ' + backupKey);
+          } catch {}
           if (confirm('确定要导入数据吗？这会覆盖当前数据！')) {
             await saveDb(data);
             // 重新加载
@@ -3681,6 +3697,7 @@
   }
 
   function importData(event) {
+    if (!isAdmin()) { showToast('无权操作'); return; }
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -3688,9 +3705,10 @@
       try {
         const data = JSON.parse(e.target.result);
         if (data.categories && data.bookmarks) {
-          if (data.groups) state.groups = data.groups;
-          state.categories = data.categories;
-          state.bookmarks = data.bookmarks;
+          var cleanStr = function(v) { return typeof v === 'string' ? escapeHtml(v) : v; };
+          if (data.groups) state.groups = data.groups.map(function(g) { g.name = cleanStr(g.name); return g; });
+          state.categories = data.categories.map(function(c) { c.name = cleanStr(c.name); if (c.icon) c.icon = String(c.icon).slice(0, 4); return c; });
+          state.bookmarks = data.bookmarks.filter(function(b) { return b.id && b.name && b.url; }).map(function(b) { b.name = cleanStr(b.name); return b; });
           state.activeCategoryId = null;
           saveUserData();
           renderCategories();
@@ -3707,6 +3725,7 @@
   }
 
   function importBookmarksHtml(event) {
+    if (!isAdmin()) { showToast('无权操作'); return; }
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -3749,6 +3768,7 @@
   }
 
   function importBookmarksCsv(event) {
+    if (!isAdmin()) { showToast('无权操作'); return; }
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
