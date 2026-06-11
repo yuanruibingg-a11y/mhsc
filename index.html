@@ -1179,7 +1179,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.2</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.3</div>
     </div>
   </aside>
 
@@ -1857,7 +1857,9 @@
       // 防止 Supabase 旧数据覆盖本地最新数据
       try {
         var localRaw = localStorage.getItem('my_collection_data');
-        if (localRaw) {
+        var lastSaveTs = parseInt(localStorage.getItem('my_collection_last_save_ts') || '0');
+        var secondsSinceSave = (Date.now() - lastSaveTs) / 1000;
+        if (localRaw && secondsSinceSave < 5) {
           var localDb = JSON.parse(localRaw);
           var supabaseRootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
           var localRootU = Object.keys(localDb.users).find(function(u) { return localDb.users[u]?.role === 'root'; });
@@ -1867,7 +1869,7 @@
             var supabaseBmCount = (supabaseRootData.bookmarks || []).length;
             var localBmCount = (localRootData.bookmarks || []).length;
             if (localBmCount > supabaseBmCount && localBmCount > 0) {
-              console.warn('⚠️ Supabase 数据较旧（' + supabaseBmCount + '条），本地有 ' + localBmCount + '条，使用本地数据');
+              console.warn('⚠️ 刚刚保存过（' + secondsSinceSave.toFixed(1) + '秒前），本地数据较新（' + localBmCount + ' vs ' + supabaseBmCount + '条），使用本地数据');
               db.userData[supabaseRootU] = localRootData;
             }
           }
@@ -1904,6 +1906,7 @@
     
     // 备份到 localStorage
     localStorage.setItem('my_collection_data', JSON.stringify(db));
+    localStorage.setItem('my_collection_last_save_ts', Date.now());
     console.log('💾 数据已保存到本地 localStorage');
     
     if (!sbClient) {
