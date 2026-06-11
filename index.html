@@ -3511,6 +3511,35 @@
       } else {
         state.bookmarks = state.bookmarks.filter(b => b.id !== id);
       }
+      // Also remove from root's userData so merge won't resurrect deleted items
+      var db2 = getDbSync();
+      var rootU2 = Object.keys(db2.users).find(function(u) { return db2.users[u]?.role === 'root'; });
+      if (rootU2 && db2.userData[rootU2]) {
+        if (type === 'group') {
+          var groupCats2 = state.categories.filter(function(c) { return c.groupId === id; });
+          var groupCatIds2 = groupCats2.map(function(c) { return c.id; });
+          if (db2.userData[rootU2].bookmarks) {
+            db2.userData[rootU2].bookmarks = db2.userData[rootU2].bookmarks.filter(function(b) { return !groupCatIds2.includes(b.categoryId); });
+          }
+          if (db2.userData[rootU2].categories) {
+            db2.userData[rootU2].categories = db2.userData[rootU2].categories.filter(function(c) { return c.groupId !== id; });
+          }
+          if (db2.userData[rootU2].groups) {
+            db2.userData[rootU2].groups = db2.userData[rootU2].groups.filter(function(g) { return g.id !== id; });
+          }
+        } else if (type === 'category') {
+          if (db2.userData[rootU2].bookmarks) {
+            db2.userData[rootU2].bookmarks = db2.userData[rootU2].bookmarks.filter(function(b) { return b.categoryId !== id; });
+          }
+          if (db2.userData[rootU2].categories) {
+            db2.userData[rootU2].categories = db2.userData[rootU2].categories.filter(function(c) { return c.id !== id; });
+          }
+        } else {
+          if (db2.userData[rootU2].bookmarks) {
+            db2.userData[rootU2].bookmarks = db2.userData[rootU2].bookmarks.filter(function(b) { return b.id !== id; });
+          }
+        }
+      }
       saveUserData();
       closeModal('confirmModal');
       renderCategories();
