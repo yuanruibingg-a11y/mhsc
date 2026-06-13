@@ -1153,6 +1153,11 @@
       <button onclick="openChangePasswordModal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s;margin-bottom:8px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='';this.style.color=''">🔑 修改密码</button>
       <button onclick="logout()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='';this.style.color=''">⇢ 退出登录</button>
     </div>
+    <div id="sidebarAppActions" style="display:none;padding:6px 14px;border-top:1px solid var(--border)">
+      <button onclick="openApplyBookmarkModal()" id="applyBmBtn" style="width:100%;padding:7px;border:1px dashed var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--accent);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s;margin-bottom:4px" onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--accent-dim)'" onmouseout="this.style.borderColor='';this.style.background=''">💡 推荐收藏</button>
+      <button onclick="openApprovalPanel()" id="approvalBtn" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s;margin-bottom:4px;display:none" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='';this.style.color=''">📋 待审批 (<span id="pendingBadge">0</span>)</button>
+      <button onclick="openMyApplications()" id="myAppsBtn" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font-sans);transition:all 0.2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='';this.style.color=''">📝 我的申请</button>
+    </div>
     <div class="sidebar-footer editing-only">
       <div class="footer-section">
         <button class="btn btn-sm" onclick="openCategoryModal()" style="flex:1">+ 新建分类</button>
@@ -1179,7 +1184,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.19.3</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.0</div>
     </div>
   </aside>
 
@@ -1699,6 +1704,56 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- 申请收藏弹窗 -->
+<div class="modal-overlay" id="applyBookmarkModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">推荐收藏</div>
+    <div class="form-group"><label>收藏名称</label><input type="text" id="applyBmName" placeholder="请输入收藏名称" maxlength="50"></div>
+    <div class="form-group"><label>网址</label><input type="text" id="applyBmUrl" placeholder="https://..."></div>
+    <div class="form-group"><label>分类</label><select id="applyBmCategory"></select></div>
+    <div class="form-group">
+      <label>可见范围</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+        <div id="applyGroupSection" style="display:none">
+          <label><input type="radio" name="applyVis" value="group" checked> 仅本组可见（<span id="applyGroupLabel"></span>）</label>
+        </div>
+        <div id="applyMultiGroupSection" style="display:none">
+          <label><input type="radio" name="applyVis" value="group" checked> 仅本组可见：</label>
+          <select id="applyVisGroupSelect" style="margin-left:8px;width:200px"></select>
+        </div>
+        <label><input type="radio" name="applyVis" value="all"> 全公司可见</label>
+      </div>
+    </div>
+    <div id="applyBmError" style="color:var(--danger);font-size:12px;margin-top:6px;display:none"></div>
+    <div class="confirm-actions" style="margin-top:12px">
+      <button class="btn btn-cancel" onclick="closeModal('applyBookmarkModal')">取消</button>
+      <button class="btn btn-primary" id="applyBmSubmitBtn" onclick="submitBookmarkApplication()">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- 审批面板弹窗 -->
+<div class="drawer-overlay" id="approvalPanelModal">
+  <div class="drawer drawer-lg">
+    <div class="drawer-header"><div class="drawer-title">📋 待审批申请</div><button class="drawer-close" onclick="closeModal('approvalPanelModal')">✕</button></div>
+    <div class="drawer-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:2px solid var(--border);padding-bottom:8px">
+        <button class="btn btn-sm" id="approvalPendingTab" style="border-bottom:2px solid var(--accent);margin-bottom:-10px;border-radius:0" onclick="switchApprovalTab('pending')">待处理</button>
+        <button class="btn btn-sm" id="approvalDoneTab" style="margin-bottom:-10px;border-radius:0" onclick="switchApprovalTab('done')">已处理</button>
+      </div>
+      <div id="approvalListArea"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 我的申请弹窗 -->
+<div class="drawer-overlay" id="myApplicationsModal">
+  <div class="drawer drawer-md">
+    <div class="drawer-header"><div class="drawer-title">📝 我的申请</div><button class="drawer-close" onclick="closeModal('myApplicationsModal')">✕</button></div>
+    <div class="drawer-body"><div id="myApplicationsList"></div></div>
+  </div>
+</div>
+
 <script>
   // Supabase 配置
   const SUPABASE_URL = 'https://rgzgbtmfouxxhclrtyxu.supabase.co';
@@ -2176,7 +2231,7 @@
           cat.sortOrder = idx;
         }
       });
-      saveUserData();
+      await saveUserData();
     }
 
     try {
@@ -2191,6 +2246,15 @@
       const s = JSON.parse(localStorage.getItem('starred_' + username) || '[]');
       state.starred = s;
     } catch { state.starred = []; }
+
+    // 加载 pendingBookmarks 和 auditLogs
+    if (rootUser) {
+      state.pendingBookmarks = (db.userData[rootUser]?.pendingBookmarks) || [];
+      state.auditLogs = (db.userData[rootUser]?.auditLogs) || [];
+    } else {
+      state.pendingBookmarks = [];
+      state.auditLogs = [];
+    }
 
     // root 数据为空时，尝试从 localStorage 备份恢复
     if (user.role === 'root' && state.categories.length === 0) {
@@ -2229,7 +2293,7 @@
         { id: genId(), name: '开发工具', icon: '🛠', groupId: defaultGroup.id, sortOrder: 2 },
         { id: genId(), name: '学习资源', icon: '📖', groupId: defaultGroup.id, sortOrder: 3 }
       ];
-      saveUserData();
+      await saveUserData();
     }
   }
 
@@ -2251,18 +2315,28 @@
     }));
   }
 
-  function saveUserData() {
-    const db = getDbSync();
+  async function saveUserData() {
     if (!state.currentUser) return;
-    const user = db.users[state.currentUser];
+    var db = getDbSync();
+    var user = db.users[state.currentUser];
     if (!user || (user.role !== 'admin' && user.role !== 'root')) return;
 
-    const allUsers = Object.keys(db.users);
-    const rootUser = allUsers.find(u => db.users[u]?.role === 'root');
-    const targetUser = rootUser || state.currentUser;
+    var allUsers = Object.keys(db.users);
+    var rootUser = allUsers.find(function(u) { return db.users[u]?.role === 'root'; });
+    var targetUser = rootUser || state.currentUser;
+
+    // 冷数据保护：距上次同步超 3 秒则先刷新
+    if (lastCacheTime && (Date.now() - lastCacheTime > 3000)) {
+      await getDb();
+      db = getDbSync();
+      var freshRootData = db.userData[targetUser] || {};
+      state.pendingBookmarks = freshRootData.pendingBookmarks || [];
+      state.auditLogs = freshRootData.auditLogs || [];
+    }
 
     var existing = db.userData[targetUser] || {};
 
+    // 合并 groups
     var mergedGroups = existing.groups ? existing.groups.slice() : [];
     state.groups.forEach(function(sg) {
       var idx = mergedGroups.findIndex(function(g) { return g.id === sg.id; });
@@ -2270,6 +2344,7 @@
       else mergedGroups.push(sg);
     });
 
+    // 合并 categories
     var mergedCats = existing.categories ? existing.categories.slice() : [];
     state.categories.forEach(function(sc) {
       var idx = mergedCats.findIndex(function(c) { return c.id === sc.id; });
@@ -2277,6 +2352,7 @@
       else mergedCats.push(sc);
     });
 
+    // 合并 bookmarks
     var mergedBms = existing.bookmarks ? existing.bookmarks.slice() : [];
     state.bookmarks.forEach(function(sb) {
       var idx = mergedBms.findIndex(function(b) { return b.id === sb.id; });
@@ -2284,11 +2360,112 @@
       else mergedBms.push(sb);
     });
 
+    // 合并 pendingBookmarks（含 reviewedAt 保护）
+    var mergedPending = existing.pendingBookmarks ? existing.pendingBookmarks.slice() : [];
+    (state.pendingBookmarks || []).forEach(function(sp) {
+      var idx = mergedPending.findIndex(function(p) { return p.id === sp.id; });
+      if (idx >= 0) {
+        if (!mergedPending[idx].reviewedAt && !sp.reviewedAt) {
+          mergedPending[idx] = sp;
+        } else if (!mergedPending[idx].reviewedAt && sp.reviewedAt) {
+          mergedPending[idx] = sp;
+        }
+      } else {
+        mergedPending.push(sp);
+      }
+    });
+
+    // 合并 auditLogs
+    var mergedLogs = existing.auditLogs ? existing.auditLogs.slice() : [];
+    (state.auditLogs || []).forEach(function(sl) {
+      var idx = mergedLogs.findIndex(function(l) { return l.id === sl.id; });
+      if (idx >= 0) mergedLogs[idx] = sl;
+      else mergedLogs.push(sl);
+    });
+
+    // 合并 permissions
+    var mergedPerms = existing.permissions ? Object.assign({}, existing.permissions) : {};
+    var statePerms = db.userData[targetUser]?.permissions;
+    if (statePerms) {
+      for (var pk in statePerms) {
+        if (statePerms.hasOwnProperty(pk)) mergedPerms[pk] = statePerms[pk];
+      }
+    }
+
+    // 合并 accountGroups
+    var mergedAccountGroups = existing.accountGroups ? existing.accountGroups.slice() : [];
+    var stateAccountGroups = db.userData[targetUser]?.accountGroups;
+    if (stateAccountGroups) {
+      stateAccountGroups.forEach(function(sag) {
+        var idx = mergedAccountGroups.findIndex(function(ag) { return ag.id === sag.id; });
+        if (idx >= 0) mergedAccountGroups[idx] = sag;
+        else mergedAccountGroups.push(sag);
+      });
+    }
+
     existing.groups = mergedGroups;
     existing.categories = mergedCats;
     existing.bookmarks = mergedBms;
+    existing.pendingBookmarks = mergedPending;
+    existing.auditLogs = mergedLogs;
+    existing.permissions = mergedPerms;
+    existing.accountGroups = mergedAccountGroups;
+
+    // 统一截断
+    if (existing.pendingBookmarks && existing.pendingBookmarks.length > 200) {
+      existing.pendingBookmarks.length = 200;
+    }
+    if (existing.auditLogs && existing.auditLogs.length > 10000) {
+      existing.auditLogs.length = 10000;
+    }
+
     db.userData[targetUser] = existing;
     saveDb(db);
+  }
+
+  async function savePendingApplication() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    localStorage.setItem('my_collection_data', JSON.stringify(db));
+    if (sbClient) {
+      try {
+        await sbClient.from('user_data').upsert({
+          username: rootU, data: db.userData[rootU], updated_at: new Date().toISOString()
+        }, { onConflict: 'username' });
+      } catch(e) { console.error('保存申请失败:', e); }
+    }
+  }
+
+  function addAuditLog(action, targetType, targetId, targetName, detail, groupId) {
+    if (!isAdmin()) return;
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    if (!db.userData[rootU]) db.userData[rootU] = {};
+    if (!db.userData[rootU].auditLogs) db.userData[rootU].auditLogs = [];
+    var actor = state.currentUser || 'unknown';
+    var actorRole = (db.users[actor]?.role) || 'unknown';
+    db.userData[rootU].auditLogs.unshift({
+      id: genId(), timestamp: Date.now(), actor: actor, actorRole: actorRole,
+      action: action, targetType: targetType, targetId: targetId, targetName: targetName,
+      detail: detail || '', groupId: groupId || null
+    });
+  }
+
+  function auditLogForApplication(action, targetId, targetName, detail, groupId) {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    if (!db.userData[rootU]) db.userData[rootU] = {};
+    if (!db.userData[rootU].auditLogs) db.userData[rootU].auditLogs = [];
+    var actor = state.currentUser || 'unknown';
+    var actorRole = (db.users[actor]?.role) || 'unknown';
+    db.userData[rootU].auditLogs.unshift({
+      id: genId(), timestamp: Date.now(), actor: actor, actorRole: actorRole,
+      action: action, targetType: 'application', targetId: targetId, targetName: targetName,
+      detail: detail || '', groupId: groupId || null
+    });
   }
 
   function isAdmin() {
@@ -2305,7 +2482,8 @@
     if (bm.sortOrder === undefined) bm.sortOrder = index;
   }
 
-  function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  var _idCounter = Math.floor(Math.random() * 1000);
+  function genId() { _idCounter = (_idCounter + 1) % 1000; return Date.now().toString(36) + _idCounter.toString().padStart(3, '0') + Math.random().toString(36).slice(2, 4); }
 
   function copyUrlToClipboard(url) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2525,7 +2703,7 @@
         item.classList.remove('drag-over');
       });
       
-      item.addEventListener('drop', (e) => {
+      item.addEventListener('drop', async (e) => {
         e.preventDefault();
         if (draggedItem && item !== draggedItem) {
           const targetCatId = item.dataset.catId;
@@ -2556,7 +2734,7 @@
             });
           });
           
-          saveUserData();
+          await saveUserData();
           renderCategories();
         }
       });
@@ -2574,7 +2752,7 @@
         groupContainer.classList.remove('drag-over');
       });
       
-      groupContainer.addEventListener('drop', (e) => {
+      groupContainer.addEventListener('drop', async (e) => {
         e.preventDefault();
         if (draggedItem) {
           const groupItem = groupContainer.closest('.group-item');
@@ -2603,7 +2781,7 @@
             });
           });
           
-          saveUserData();
+          await saveUserData();
           renderCategories();
         }
       });
@@ -2973,7 +3151,7 @@
     });
 
     showToast('正在保存...');
-    saveUserData();
+    await saveUserData();
     var db = getDbSync();
     await saveDb(db);
 
@@ -3156,7 +3334,7 @@
     setTimeout(() => nameInput.focus(), 100);
   }
 
-  function saveBookmark() {
+  async function saveBookmark() {
     const name = document.getElementById('bookmarkName').value.trim();
     const url = document.getElementById('bookmarkUrl').value.trim();
     const customIcon = document.getElementById('bookmarkCustomIcon').value.trim();
@@ -3243,7 +3421,12 @@
       }
     }
 
-    saveUserData();
+    if (editId) {
+      addAuditLog('edit_bookmark', 'bookmark', editId, name, '编辑了收藏「' + name + '」', null);
+    } else {
+      addAuditLog('create_bookmark', 'bookmark', '', name, '添加了收藏「' + name + '」', null);
+    }
+    await saveUserData();
     closeModal('bookmarkModal');
     renderCategories();
     renderBookmarks();
@@ -3266,7 +3449,7 @@
     container.appendChild(row);
   }
 
-  function reorderBookmarks(srcId, targetId) {
+  async function reorderBookmarks(srcId, targetId) {
     const items = state.bookmarks;
     const srcIdx = items.findIndex(b => b.id === srcId);
     const targetIdx = items.findIndex(b => b.id === targetId);
@@ -3276,7 +3459,7 @@
     items.splice(targetIdx, 0, moved);
 
     items.forEach((b, i) => { b.sortOrder = i; });
-    saveUserData();
+    await saveUserData();
     renderBookmarks();
     showToast('顺序已调整');
   }
@@ -3414,7 +3597,7 @@
     setTimeout(() => nameInput.focus(), 100);
   }
 
-  function saveCategory() {
+  async function saveCategory() {
     const name = document.getElementById('categoryName').value.trim();
     const icon = document.getElementById('categoryIcon').value.trim() || '📁';
     const editId = document.getElementById('editCategoryId').value;
@@ -3480,7 +3663,12 @@
       }
     }
 
-    saveUserData();
+    if (editId) {
+      addAuditLog('edit_category', 'category', editId, name, '编辑了分类「' + name + '」', null);
+    } else {
+      addAuditLog('create_category', 'category', '', name, '添加了分类「' + name + '」', null);
+    }
+    await saveUserData();
     closeModal('categoryModal');
     renderCategories();
     updateMainTitle();
@@ -3512,7 +3700,7 @@
     setTimeout(() => nameInput.focus(), 100);
   }
 
-  function saveGroup() {
+  async function saveGroup() {
     const name = document.getElementById('groupName').value.trim();
     const icon = document.getElementById('groupIcon').value.trim() || '📁';
     const editId = document.getElementById('editGroupId').value;
@@ -3532,13 +3720,18 @@
       state.groups.push({ id: genId(), name, icon, sortOrder: maxOrder + 1 });
     }
 
-    saveUserData();
+    if (editId) {
+      addAuditLog('edit_group', 'group', editId, name, '编辑了分组「' + name + '」', null);
+    } else {
+      addAuditLog('create_group', 'group', '', name, '添加了分组「' + name + '」', null);
+    }
+    await saveUserData();
     closeModal('groupModal');
     renderCategories();
     showToast(editId ? '已更新分组' : '已新建分组');
   }
 
-  function confirmDelete(type, id) {
+  async function confirmDelete(type, id) {
     const modal = document.getElementById('confirmModal');
     const title = document.getElementById('confirmTitle');
     const text = document.getElementById('confirmText');
@@ -3570,7 +3763,7 @@
       text.textContent = `确定要删除「${bm ? bm.name : '此项'}」吗？${creatorHint}`;
     }
 
-    confirmCallback = () => {
+    confirmCallback = async () => {
       if (type === 'group') {
         const groupCats = state.categories.filter(c => c.groupId === id);
         const groupCatIds = groupCats.map(c => c.id);
@@ -3613,7 +3806,14 @@
           }
         }
       }
-      saveUserData();
+      if (type === 'group') {
+        addAuditLog('delete_group', 'group', group.id, group.name, '删除了分组「' + group.name + '」', null);
+      } else if (type === 'category') {
+        addAuditLog('delete_category', 'category', cat.id, cat.name, '删除了分类「' + cat.name + '」', null);
+      } else {
+        addAuditLog('delete_bookmark', 'bookmark', bm.id, bm.name, '删除了收藏「' + bm.name + '」', null);
+      }
+      await saveUserData();
       closeModal('confirmModal');
       renderCategories();
       updateMainTitle();
@@ -3704,7 +3904,7 @@
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
         if (data.categories && data.bookmarks) {
@@ -3713,7 +3913,8 @@
           state.categories = data.categories.map(function(c) { c.name = cleanStr(c.name); if (c.icon) c.icon = String(c.icon).slice(0, 4); return c; });
           state.bookmarks = data.bookmarks.filter(function(b) { return b.id && b.name && b.url; }).map(function(b) { b.name = cleanStr(b.name); return b; });
           state.activeCategoryId = null;
-          saveUserData();
+          addAuditLog('import_data', 'data', '', '', '导入了JSON数据', null);
+          await saveUserData();
           renderCategories();
           updateMainTitle();
           renderBookmarks();
@@ -3732,7 +3933,7 @@
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const html = e.target.result;
         const parser = new DOMParser();
@@ -3756,7 +3957,8 @@
           }
         });
         if (count > 0) {
-          saveUserData();
+          addAuditLog('import_data', 'data', '', '', '导入了HTML书签', null);
+          await saveUserData();
           renderCategories();
           renderBookmarks();
           updateMainTitle();
@@ -3775,7 +3977,7 @@
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const text = e.target.result;
         const lines = text.split('\n').filter(l => l.trim());
@@ -3828,7 +4030,8 @@
         }
 
         if (count > 0) {
-          saveUserData();
+          addAuditLog('import_data', 'data', '', '', '导入了CSV数据', null);
+          await saveUserData();
           renderCategories();
           renderBookmarks();
           updateMainTitle();
@@ -4144,21 +4347,27 @@
     
     document.getElementById('loginSidebarBtn').style.display = 'none';
     document.getElementById('sidebarLogoutRow').style.display = '';
+    document.getElementById('sidebarAppActions').style.display = '';
 
     if (isAdminUser) {
       document.getElementById('editToggleBtn').style.display = '';
       document.getElementById('userMgrBtn').style.display = '';
       document.getElementById('leaderPermSection').style.display = 'none';
+      document.getElementById('applyBmBtn').style.display = 'none';
     } else {
       document.getElementById('editToggleBtn').style.display = 'none';
       document.getElementById('userMgrBtn').style.display = 'none';
       const leaderGroup = getLeaderGroup();
       document.getElementById('leaderPermSection').style.display = leaderGroup ? '' : 'none';
+      document.getElementById('applyBmBtn').style.display = '';
     }
 
     updateMainTitle();
     renderCategories();
     renderBookmarks();
+
+    updatePendingBadge();
+    setTimeout(function() { checkApplicationNotifications(); }, 800);
     
     var userTheme = (state.currentUser && db.users[state.currentUser]?.theme) || 'dark';
     applyTheme(userTheme);
@@ -4540,6 +4749,9 @@
           db.users[username].enabled = true;
         });
         
+        selectedUsers.forEach(function(username) {
+          addAuditLog('enable_user', 'user', username, username, '启用了用户「' + username + '」', null);
+        });
         saveDb(db);
         closeModal('confirmModal');
         renderUserList();
@@ -4579,6 +4791,9 @@
           db.users[username].enabled = false;
         });
         
+        selectedUsers.forEach(function(username) {
+          addAuditLog('disable_user', 'user', username, username, '禁用了用户「' + username + '」', null);
+        });
         saveDb(db);
         closeModal('confirmModal');
         renderUserList();
@@ -4632,7 +4847,18 @@
           }
         });
         
+        selectedUsers.forEach(function(username) {
+          addAuditLog('delete_user', 'user', username, username, '删除了用户「' + username + '」', null);
+        });
         saveDb(db);
+        
+        var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+        if (rootU && db.userData[rootU] && db.userData[rootU].pendingBookmarks) {
+          db.userData[rootU].pendingBookmarks = db.userData[rootU].pendingBookmarks.filter(function(pb) {
+            return !selectedUsers.has(pb.suggestedBy);
+          });
+          saveDb(db);
+        }
         
         if (sbClient) {
           try {
@@ -4737,6 +4963,7 @@
       return;
     }
     
+    var passwordChanged = false;
     if (password) {
       const pwdHash = await hashPassword(password);
       user.passwordHash = pwdHash.hash;
@@ -4749,6 +4976,7 @@
         const currentVer = db.userData[rootUser].pwd_vers[editUserTarget] || 0;
         db.userData[rootUser].pwd_vers[editUserTarget] = currentVer + 1;
       }
+      passwordChanged = true;
     }
     
     if (!isRoot && isCurrentAdmin && !isCurrent) {
@@ -4759,6 +4987,10 @@
       user.groups = newGroups;
     }
     
+    addAuditLog('edit_user', 'user', editUserTarget, editUserTarget, '编辑了用户「' + editUserTarget + '」', null);
+    if (passwordChanged) {
+      addAuditLog('reset_password', 'user', editUserTarget, editUserTarget, '重置了「' + editUserTarget + '」的密码', null);
+    }
     saveDb(db);
     await new Promise(r => setTimeout(r, 100));
     renderUserList();
@@ -4847,6 +5079,7 @@
     if (!db.userData) db.userData = {};
     db.userData[username] = { categories: [], bookmarks: [] };
     setUserPwdVer(username, 1);
+    addAuditLog('create_user', 'user', username, username, '添加了用户「' + username + '」', null);
     saveDb(db);
     closeModal('addUserModal');
     renderUserList();
@@ -5138,6 +5371,11 @@
     }
     cachedDb = null;
     showToast('正在保存...');
+    if (currentEditGroupId) {
+      addAuditLog('rename_account_group', 'account_group', currentEditGroupId, name, '重命名了账号分组「' + name + '」', null);
+    } else {
+      addAuditLog('create_account_group', 'account_group', '', name, '添加了账号分组「' + name + '」', null);
+    }
     await saveDb(db);
     renderPermGroupList();
     renderGroupList();
@@ -5162,6 +5400,13 @@
     }
     cachedDb = null;
     showToast('正在删除...');
+    addAuditLog('delete_account_group', 'account_group', groupId, '', '删除了账号分组', groupId);
+    if (rootData.pendingBookmarks) {
+      rootData.pendingBookmarks = rootData.pendingBookmarks.filter(function(pb) {
+        return !(pb.suggestedByGroupIds && pb.suggestedByGroupIds.includes(groupId))
+          && !(pb.visibleGroupIds && pb.visibleGroupIds.includes(groupId));
+      });
+    }
     await saveDb(db);
     renderPermGroupList();
     renderGroupList();
@@ -5219,6 +5464,7 @@
     if (!g) return;
     g.leader = username;
     cachedDb = null;
+    addAuditLog('set_leader', 'account_group', username, username, '设「' + username + '」为组长', currentSetLeaderGroupId);
     await saveDb(db);
     renderPermGroupList();
     closeModal('setLeaderModal');
@@ -5235,6 +5481,7 @@
     if (!g) return;
     g.leader = null;
     cachedDb = null;
+    addAuditLog('remove_leader', 'account_group', '', '', '撤去了组长职务', groupId);
     await saveDb(db);
     renderPermGroupList();
     showToast('已撤职');
@@ -5924,9 +6171,11 @@
       adminBmSet = new Set(adminBmIds);
     }
     
+    var auditTarget;
     if (currentPermMode === 'group') {
       if (!selectedPermGroupId) { showToast('请先选择一个分组'); return; }
       const targetKey = 'group:' + selectedPermGroupId;
+      auditTarget = targetKey;
       const checkedCatIds = [];
       const checkedBmIds = [];
       document.querySelectorAll('.perm-checkbox:checked').forEach(cb => {
@@ -5938,7 +6187,8 @@
         bookmarks: checkedBmIds
       };
     } else {
-      const targetValue = (leaderGroupForMgr && currentPermTarget) ? currentPermTarget : document.getElementById('permAccountSelect').value;
+      var targetValue = (leaderGroupForMgr && currentPermTarget) ? currentPermTarget : document.getElementById('permAccountSelect').value;
+      auditTarget = targetValue;
       const allowCats = [];
       const allowBms = [];
       const denyCats = [];
@@ -5988,6 +6238,7 @@
     
     cachedDb = null;
     showToast('正在保存权限...');
+    addAuditLog('modify_permission', 'permission', auditTarget, '', '修改了权限设置', null);
     await saveDb(db);
     const currentDb = getDbSync();
     const rd = currentDb.userData[rootUser] || {};
@@ -6236,6 +6487,327 @@
     renderCategories(); // 先渲染空状态
     showPasswordModal();
   })();
+
+  // ===== 申请收藏功能 =====
+
+  function openApplyBookmarkModal() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootU) { showToast('系统未初始化'); return; }
+    var rootData = db.userData[rootU] || {};
+    var allCats = rootData.categories || [];
+    var catSelect = document.getElementById('applyBmCategory');
+    catSelect.innerHTML = '';
+    if (allCats.length === 0) {
+      catSelect.innerHTML = '<option value="">暂无可用分类，请联系管理员先创建分类</option>';
+      document.getElementById('applyBmSubmitBtn').disabled = true;
+    } else {
+      allCats.forEach(function(c) {
+        catSelect.innerHTML += '<option value="' + c.id + '">' + (c.icon || '📁') + ' ' + c.name + '</option>';
+      });
+      document.getElementById('applyBmSubmitBtn').disabled = false;
+    }
+    document.getElementById('applyBmName').value = '';
+    document.getElementById('applyBmUrl').value = '';
+    document.getElementById('applyBmError').style.display = 'none';
+
+    var userGroups = db.users[state.currentUser]?.groups || [];
+    if (userGroups.length === 0) {
+      document.getElementById('applyGroupSection').style.display = 'none';
+      document.getElementById('applyMultiGroupSection').style.display = 'none';
+      document.querySelector('input[name="applyVis"][value="all"]').checked = true;
+    } else if (userGroups.length === 1) {
+      var g = (rootData.accountGroups || []).find(function(ag) { return ag.id === userGroups[0]; });
+      document.getElementById('applyGroupLabel').textContent = g ? g.name : userGroups[0];
+      document.getElementById('applyGroupSection').style.display = '';
+      document.getElementById('applyMultiGroupSection').style.display = 'none';
+      document.querySelector('input[name="applyVis"][value="group"]').checked = true;
+    } else {
+      var sel = document.getElementById('applyVisGroupSelect');
+      sel.innerHTML = '';
+      userGroups.forEach(function(gid) {
+        var ag = (rootData.accountGroups || []).find(function(a) { return a.id === gid; });
+        sel.innerHTML += '<option value="' + gid + '">' + (ag ? ag.name : gid) + '</option>';
+      });
+      document.getElementById('applyGroupSection').style.display = 'none';
+      document.getElementById('applyMultiGroupSection').style.display = '';
+      document.querySelector('input[name="applyVis"][value="group"]').checked = true;
+    }
+    document.getElementById('applyBookmarkModal').classList.add('show');
+  }
+
+  async function submitBookmarkApplication() {
+    var name = document.getElementById('applyBmName').value.trim();
+    var url = document.getElementById('applyBmUrl').value.trim();
+    var categoryId = document.getElementById('applyBmCategory').value;
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    var rootData = db.userData[rootU] || {};
+
+    if (!name) { document.getElementById('applyBmError').textContent = '请输入收藏名称'; document.getElementById('applyBmError').style.display = ''; return; }
+    if (!url) { document.getElementById('applyBmError').textContent = '请输入链接地址'; document.getElementById('applyBmError').style.display = ''; return; }
+    if (!categoryId) { document.getElementById('applyBmError').textContent = '请选择分类'; document.getElementById('applyBmError').style.display = ''; return; }
+
+    var visRadio = document.querySelector('input[name="applyVis"]:checked');
+    var visibility = visRadio ? visRadio.value : 'all';
+    var visibleGroupIds = [];
+    if (visibility === 'group') {
+      if (document.getElementById('applyMultiGroupSection').style.display !== 'none') {
+        visibleGroupIds.push(document.getElementById('applyVisGroupSelect').value);
+      } else {
+        var userGroups = db.users[state.currentUser]?.groups || [];
+        if (userGroups.length > 0) visibleGroupIds.push(userGroups[0]);
+      }
+    }
+
+    if (!rootData.pendingBookmarks) rootData.pendingBookmarks = [];
+    rootData.pendingBookmarks.unshift({
+      id: genId(),
+      name: escapeHtml(name),
+      url: escapeHtml(url),
+      categoryId: categoryId,
+      suggestedBy: state.currentUser,
+      suggestedByGroupIds: db.users[state.currentUser]?.groups || [],
+      status: 'pending',
+      visibility: visibility,
+      visibleGroupIds: visibleGroupIds,
+      createdAt: Date.now(),
+      reviewedBy: null,
+      reviewedByRole: null,
+      reviewedAt: null,
+      rejectReason: null,
+      notified: false
+    });
+
+    auditLogForApplication('submit_application', state.currentUser, name, '提交了收藏申请「' + name + '」', visibleGroupIds[0] || null);
+
+    closeModal('applyBookmarkModal');
+    await savePendingApplication();
+    showToast('申请已提交，等待审核');
+  }
+
+  function updatePendingBadge() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    var pending = (rootU && db.userData[rootU]?.pendingBookmarks) || [];
+    var isAdminUser = isAdmin();
+    var leaderGroup = getLeaderGroup();
+    var count = 0;
+    if (isAdminUser) {
+      count = pending.filter(function(p) { return p.status === 'pending'; }).length;
+    } else if (leaderGroup) {
+      count = pending.filter(function(p) {
+        return p.status === 'pending' && p.visibility === 'group' &&
+          (p.visibleGroupIds || []).includes(leaderGroup.id) &&
+          p.suggestedBy !== state.currentUser;
+      }).length;
+    }
+    var badge = document.getElementById('pendingBadge');
+    if (badge) { badge.textContent = count; }
+    var btn = document.getElementById('approvalBtn');
+    if (btn) { btn.style.display = (isAdminUser || leaderGroup) ? '' : 'none'; }
+  }
+
+  function openApprovalPanel() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    state.pendingBookmarks = (rootU && db.userData[rootU]?.pendingBookmarks) || [];
+    state.approvalTab = 'pending';
+    document.getElementById('approvalPanelModal').classList.add('show');
+    renderApprovalList();
+  }
+
+  function switchApprovalTab(tab) {
+    state.approvalTab = tab;
+    document.getElementById('approvalPendingTab').style.borderBottom = (tab === 'pending' ? '2px solid var(--accent)' : 'none');
+    document.getElementById('approvalPendingTab').style.marginBottom = (tab === 'pending' ? '-10px' : '0');
+    document.getElementById('approvalDoneTab').style.borderBottom = (tab === 'done' ? '2px solid var(--accent)' : 'none');
+    document.getElementById('approvalDoneTab').style.marginBottom = (tab === 'done' ? '-10px' : '0');
+    renderApprovalList();
+  }
+
+  function renderApprovalList() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    var allPending = (rootU && db.userData[rootU]?.pendingBookmarks) || [];
+    var isAdminUser = isAdmin();
+    var leaderGroup = getLeaderGroup();
+
+    var filtered = allPending.filter(function(p) {
+      var roleFilter = isAdminUser || (leaderGroup && p.visibility === 'group' &&
+        (p.visibleGroupIds || []).includes(leaderGroup.id) && p.suggestedBy !== state.currentUser);
+      if (!roleFilter) return false;
+      if (state.approvalTab === 'pending') return p.status === 'pending';
+      return p.status === 'approved' || p.status === 'rejected';
+    });
+
+    var area = document.getElementById('approvalListArea');
+    if (filtered.length === 0) {
+      area.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">' + (state.approvalTab === 'pending' ? '暂无待审批的申请' : '暂无已处理的申请') + '</div>';
+      return;
+    }
+    var html = '';
+    filtered.forEach(function(p) {
+      var catName = '';
+      var allCats = db.userData[rootU]?.categories || [];
+      var cat = allCats.find(function(c) { return c.id === p.categoryId; });
+      catName = cat ? cat.name : '⚠️ 原分类已删除';
+      var visText = p.visibility === 'group' ? '仅组内' : '全公司';
+      var statusHtml = '';
+      if (p.status === 'approved') {
+        statusHtml = '<span style="color:var(--success)">✅ 已批准 — ' + (p.reviewedBy || '') + '(' + (p.reviewedByRole || '') + ') | ' + new Date(p.reviewedAt).toLocaleString() + '</span>';
+      } else if (p.status === 'rejected') {
+        statusHtml = '<span style="color:var(--danger)">❌ 已拒绝 — ' + (p.reviewedBy || '') + '(' + (p.reviewedByRole || '') + ') | ' + (p.rejectReason ? '原因: ' + escapeHtml(p.rejectReason) : '') + '</span>';
+      }
+      var existingBms = db.userData[rootU]?.bookmarks || [];
+      var dupUrl = existingBms.some(function(b) { return b.url === p.url; });
+      html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
+      html += '<div style="font-weight:500;margin-bottom:4px">' + escapeHtml(p.suggestedBy) + ' 推荐了「' + escapeHtml(p.name) + '」</div>';
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">🔗 ' + escapeHtml(p.url) + ' | 📁 ' + catName + ' | 👁 ' + visText + ' | 📅 ' + new Date(p.createdAt).toLocaleString() + '</div>';
+      if (dupUrl) html += '<div style="font-size:11px;color:var(--warning);background:#fff3cd;padding:2px 6px;border-radius:3px;margin-bottom:4px">⚠️ 系统中已有相同链接</div>';
+      if (p.status === 'pending') {
+        html += '<div style="display:flex;gap:6px;margin-top:6px">';
+        html += '<button class="btn btn-primary btn-sm" onclick="approveBookmarkApplication(\'' + p.id + '\')">✅ 批准</button>';
+        html += '<button class="btn btn-sm" style="color:var(--danger)" onclick="rejectBookmarkApplication(\'' + p.id + '\')">❌ 拒绝</button>';
+        html += '</div>';
+      } else if (statusHtml) {
+        html += '<div style="font-size:11px;margin-top:4px">' + statusHtml + '</div>';
+      }
+      html += '</div>';
+    });
+    area.innerHTML = html;
+  }
+
+  async function approveBookmarkApplication(appId) {
+    var freshDb = await getDb();
+    var rootU = Object.keys(freshDb.users).find(function(u) { return freshDb.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    var pendingList = freshDb.userData[rootU]?.pendingBookmarks || [];
+    var targetApp = pendingList.find(function(p) { return p.id === appId; });
+    if (!targetApp || targetApp.status !== 'pending') {
+      showToast('该申请已被处理，请刷新后重试');
+      return;
+    }
+
+    var newBmId = genId();
+    var newBm = {
+      id: newBmId, name: targetApp.name, url: targetApp.url,
+      categoryId: targetApp.categoryId, views: [],
+      sortOrder: (freshDb.userData[rootU]?.bookmarks || []).length,
+      createdAt: Date.now(), createdBy: targetApp.suggestedBy
+    };
+    if (!freshDb.userData[rootU].bookmarks) freshDb.userData[rootU].bookmarks = [];
+    freshDb.userData[rootU].bookmarks.push(newBm);
+
+    if (targetApp.visibility === 'group' && targetApp.visibleGroupIds && targetApp.visibleGroupIds.length > 0) {
+      if (!freshDb.userData[rootU].permissions) freshDb.userData[rootU].permissions = {};
+      var perms = freshDb.userData[rootU].permissions;
+      var groupKey = 'group:' + targetApp.visibleGroupIds[0];
+      if (!perms[groupKey]) perms[groupKey] = { categories: [], bookmarks: [] };
+      if (!perms[groupKey].bookmarks) perms[groupKey].bookmarks = [];
+      if (!perms[groupKey].bookmarks.includes(newBmId)) perms[groupKey].bookmarks.push(newBmId);
+    }
+
+    targetApp.status = 'approved';
+    targetApp.reviewedBy = state.currentUser;
+    targetApp.reviewedByRole = (freshDb.users[state.currentUser]?.role) || 'unknown';
+    targetApp.reviewedAt = Date.now();
+
+    auditLogForApplication('approve_application', targetApp.suggestedBy, targetApp.name, '批准了「' + targetApp.name + '」', targetApp.visibleGroupIds?.[0] || null);
+
+    cachedDb = freshDb;
+    globalDb = freshDb;
+    localStorage.setItem('my_collection_data', JSON.stringify(freshDb));
+    lastCacheTime = Date.now();
+    await saveDb(freshDb);
+
+    state.pendingBookmarks = freshDb.userData[rootU]?.pendingBookmarks || [];
+    state.bookmarks = freshDb.userData[rootU]?.bookmarks || [];
+    updatePendingBadge();
+    renderApprovalList();
+    renderBookmarks();
+    showToast('已批准「' + targetApp.name + '」');
+  }
+
+  async function rejectBookmarkApplication(appId) {
+    var reason = prompt('请输入拒绝原因（可选）:');
+    var freshDb = await getDb();
+    var rootU = Object.keys(freshDb.users).find(function(u) { return freshDb.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    var pendingList = freshDb.userData[rootU]?.pendingBookmarks || [];
+    var targetApp = pendingList.find(function(p) { return p.id === appId; });
+    if (!targetApp || targetApp.status !== 'pending') {
+      showToast('该申请已被处理，请刷新后重试');
+      return;
+    }
+    targetApp.status = 'rejected';
+    targetApp.reviewedBy = state.currentUser;
+    targetApp.reviewedByRole = (freshDb.users[state.currentUser]?.role) || 'unknown';
+    targetApp.reviewedAt = Date.now();
+    targetApp.rejectReason = reason || '';
+
+    auditLogForApplication('reject_application', targetApp.suggestedBy, targetApp.name, '拒绝了「' + targetApp.name + '」' + (reason ? ': ' + reason : ''), targetApp.visibleGroupIds?.[0] || null);
+
+    cachedDb = freshDb;
+    globalDb = freshDb;
+    localStorage.setItem('my_collection_data', JSON.stringify(freshDb));
+    lastCacheTime = Date.now();
+    await saveDb(freshDb);
+
+    state.pendingBookmarks = freshDb.userData[rootU]?.pendingBookmarks || [];
+    updatePendingBadge();
+    renderApprovalList();
+    showToast('已拒绝「' + targetApp.name + '」');
+  }
+
+  function openMyApplications() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    var allPending = (rootU && db.userData[rootU]?.pendingBookmarks) || [];
+    var mine = allPending.filter(function(p) { return p.suggestedBy === state.currentUser; });
+    var area = document.getElementById('myApplicationsList');
+    if (mine.length === 0) {
+      area.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">暂无申请记录</div>';
+    } else {
+      var html = '';
+      mine.forEach(function(p) {
+        var db2 = getDbSync();
+        var cats = db2.userData[rootU]?.categories || [];
+        var cat = cats.find(function(c) { return c.id === p.categoryId; });
+        var statusIcon = p.status === 'pending' ? '⏳ 待审批' : (p.status === 'approved' ? '✅ 已通过' : '❌ 已拒绝');
+        var statusColor = p.status === 'pending' ? 'var(--text-muted)' : (p.status === 'approved' ? 'var(--success)' : 'var(--danger)');
+        html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
+        html += '<div style="font-weight:500">' + escapeHtml(p.name) + '</div>';
+        html += '<div style="font-size:11px;color:var(--text-muted)">🔗 ' + escapeHtml(p.url) + ' | 📁 ' + (cat ? cat.name : '未知') + '</div>';
+        html += '<div style="font-size:11px;color:' + statusColor + ';margin-top:4px">' + statusIcon + '</div>';
+        if (p.reviewedBy) {
+          html += '<div style="font-size:10px;color:var(--text-muted)">由 ' + p.reviewedBy + '(' + p.reviewedByRole + ') 于 ' + new Date(p.reviewedAt).toLocaleString() + ' 审批</div>';
+          if (p.rejectReason) html += '<div style="font-size:10px;color:var(--danger)">原因: ' + escapeHtml(p.rejectReason) + '</div>';
+        }
+        html += '</div>';
+      });
+      area.innerHTML = html;
+    }
+    document.getElementById('myApplicationsModal').classList.add('show');
+  }
+
+  function checkApplicationNotifications() {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    var allPending = (rootU && db.userData[rootU]?.pendingBookmarks) || [];
+    var unreported = allPending.filter(function(p) {
+      return p.suggestedBy === state.currentUser && !p.notified && p.status !== 'pending';
+    });
+    if (unreported.length === 0) return;
+    unreported.forEach(function(p) {
+      var msg = p.status === 'approved'
+        ? '你推荐的「' + p.name + '」已被 ' + p.reviewedBy + ' 批准！'
+        : '你推荐的「' + p.name + '」已被拒绝' + (p.rejectReason ? '，原因: ' + p.rejectReason : '');
+      setTimeout(function() { showToast(msg); }, 500);
+      p.notified = true;
+    });
+    savePendingApplication();
+  }
 </script>
 </body>
 </html>
