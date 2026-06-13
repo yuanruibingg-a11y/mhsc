@@ -1184,7 +1184,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.1</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.2</div>
     </div>
   </aside>
 
@@ -6706,6 +6706,12 @@
     var targetApp = pendingList.find(function(p) { return p.id === appId; });
     if (!targetApp || targetApp.status !== 'pending') {
       showToast('该申请已被处理，请刷新后重试');
+      return;
+    }
+
+    var existingBms2 = freshDb.userData[rootU]?.bookmarks || [];
+    if (existingBms2.some(function(b) { return b.url === targetApp.url; })) {
+      showToast('该链接已在系统中，请先拒绝此申请');
       return;
     }
 
