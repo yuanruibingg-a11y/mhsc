@@ -1216,7 +1216,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.3</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.4</div>
     </div>
   </aside>
 
@@ -1783,6 +1783,40 @@
   <div class="drawer drawer-md">
     <div class="drawer-header"><div class="drawer-title">📝 我的申请</div><button class="drawer-close" onclick="closeModal('myApplicationsModal')">✕</button></div>
     <div class="drawer-body"><div id="myApplicationsList"></div></div>
+  </div>
+</div>
+
+<!-- 编辑后批准弹窗 -->
+<div class="modal-overlay" id="editApprovalModal" style="display:none;z-index:1100">
+  <div class="modal">
+    <div class="modal-title">编辑后批准</div>
+    <input type="hidden" id="editApprovalAppId">
+    <div class="form-group">
+      <label>名称</label>
+      <input type="text" id="editApprovalName" maxlength="50">
+    </div>
+    <div class="form-group">
+      <label>链接（不可修改）</label>
+      <div id="editApprovalUrl" style="color:var(--text-muted);font-size:13px;padding:10px 14px;background:var(--bg-surface);border-radius:var(--radius-sm)"></div>
+      <div id="editApprovalDupWarning" style="display:none;color:var(--warning);background:#fff3cd;padding:4px 8px;border-radius:3px;margin-top:4px;font-size:12px"></div>
+    </div>
+    <div class="form-group">
+      <label>分类</label>
+      <select id="editApprovalCategory"></select>
+    </div>
+    <div class="form-group" id="editApprovalVisGroup">
+      <label>可见范围</label>
+      <div class="visibility-options">
+        <label><input type="radio" name="editApprovalVis" value="all"> 全公司可见</label>
+        <label><input type="radio" name="editApprovalVis" value="group"> 仅本组可见（<span id="editApprovalGroupName"></span>）</label>
+      </div>
+    </div>
+    <div id="editApprovalLockedVis" style="display:none;color:var(--text-muted);font-size:12px;padding:8px 0">可见范围：仅本组可见（由组长审批，不可修改）</div>
+    <div id="editApprovalError" style="color:var(--danger);font-size:12px;margin-top:6px;display:none"></div>
+    <div class="form-actions">
+      <button class="btn btn-cancel" onclick="closeEditApprovalModal()">取消</button>
+      <button class="btn btn-primary" id="editApprovalSaveBtn" onclick="submitEditApproval()">✅ 批准并保存</button>
+    </div>
   </div>
 </div>
 
@@ -6711,6 +6745,13 @@
       } else if (p.status === 'rejected') {
         statusHtml = '<span style="color:var(--danger)">❌ 已拒绝 — ' + (p.reviewedBy || '') + '(' + (p.reviewedByRole || '') + ') | ' + (p.rejectReason ? '原因: ' + escapeHtml(p.rejectReason) : '') + '</span>';
       }
+      if (p.editChanges) {
+        var chgParts = [];
+        if (p.editChanges.name) chgParts.push('名称「' + escapeHtml(p.editChanges.name.from) + '」→「' + escapeHtml(p.editChanges.name.to) + '」');
+        if (p.editChanges.category) chgParts.push('分类「' + escapeHtml(p.editChanges.category.from) + '」→「' + escapeHtml(p.editChanges.category.to) + '」');
+        if (p.editChanges.visibility) chgParts.push('可见范围「' + (p.editChanges.visibility.from === 'group' ? '仅组内' : '全公司') + '」→「' + (p.editChanges.visibility.to === 'group' ? '仅组内' : '全公司') + '」');
+        statusHtml += '<br><span style="font-size:10px;color:var(--accent)">✏️ 已修改：' + chgParts.join('，') + '</span>';
+      }
       var existingBms = db.userData[rootU]?.bookmarks || [];
       var dupUrl = existingBms.some(function(b) { return b.url === p.url; });
       html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
@@ -6719,6 +6760,7 @@
       if (dupUrl && p.status === 'pending') html += '<div style="font-size:11px;color:var(--warning);background:#fff3cd;padding:2px 6px;border-radius:3px;margin-bottom:4px">⚠️ 系统中已有相同链接</div>';
       if (p.status === 'pending') {
         html += '<div style="display:flex;gap:6px;margin-top:6px">';
+        html += '<button class="btn btn-sm" style="color:var(--accent)" onclick="openEditApprovalModal(\'' + p.id + '\')">✎ 编辑后批准</button>';
         html += '<button class="btn btn-primary btn-sm" onclick="approveBookmarkApplication(\'' + p.id + '\')">✅ 批准</button>';
         html += '<button class="btn btn-sm" style="color:var(--danger)" onclick="rejectBookmarkApplication(\'' + p.id + '\')">❌ 拒绝</button>';
         html += '</div>';
@@ -6818,6 +6860,210 @@
     showToast('已拒绝「' + targetApp.name + '」');
   }
 
+  async function openEditApprovalModal(appId) {
+    var freshDb = await getDb();
+    var rootU = Object.keys(freshDb.users).find(function(u) { return freshDb.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    var pendingList = freshDb.userData[rootU]?.pendingBookmarks || [];
+    var targetApp = pendingList.find(function(p) { return p.id === appId; });
+    if (!targetApp || targetApp.status !== 'pending') {
+      showToast('该申请已被处理'); return;
+    }
+
+    var allCats = freshDb.userData[rootU]?.categories || [];
+    document.getElementById('editApprovalAppId').value = appId;
+    document.getElementById('editApprovalName').value = targetApp.name;
+    var urlEl = document.getElementById('editApprovalUrl');
+    urlEl.textContent = targetApp.url || '(未提供链接)';
+
+    var catSelect = document.getElementById('editApprovalCategory');
+    catSelect.innerHTML = '';
+    allCats.forEach(function(c) {
+      var sel = (c.id === targetApp.categoryId) ? ' selected' : '';
+      catSelect.innerHTML += '<option value="' + c.id + '"' + sel + '>' + (c.icon || '📁') + ' ' + c.name + '</option>';
+    });
+
+    var isAdminUser = isAdmin();
+    var leaderGroup = getLeaderGroup();
+    if (!isAdminUser && leaderGroup) {
+      document.getElementById('editApprovalVisGroup').style.display = 'none';
+      document.getElementById('editApprovalLockedVis').style.display = '';
+    } else {
+      document.getElementById('editApprovalVisGroup').style.display = '';
+      document.getElementById('editApprovalLockedVis').style.display = 'none';
+      var groupNameEl = document.getElementById('editApprovalGroupName');
+      var accountGroups = freshDb.userData[rootU]?.accountGroups || [];
+      var g = accountGroups.find(function(ag) { return ag.id === (targetApp.visibleGroupIds?.[0] || targetApp.suggestedByGroupIds?.[0]); });
+      groupNameEl.textContent = g ? g.name : (targetApp.visibleGroupIds?.[0] || '');
+      var radios = document.getElementsByName('editApprovalVis');
+      radios.forEach(function(r) {
+        r.checked = (r.value === targetApp.visibility);
+      });
+    }
+
+    document.getElementById('editApprovalError').style.display = 'none';
+    document.getElementById('editApprovalDupWarning').style.display = 'none';
+    var existingBms = freshDb.userData[rootU]?.bookmarks || [];
+    if (existingBms.some(function(b) { return b.url === targetApp.url; })) {
+      document.getElementById('editApprovalDupWarning').textContent = '⚠️ 该链接已在系统中，审批者无法通过此方式绕过重复检测。如需添加请先拒绝此申请并联系申请人。';
+      document.getElementById('editApprovalDupWarning').style.display = '';
+    }
+
+    document.getElementById('editApprovalModal').classList.add('show');
+  }
+
+  function closeEditApprovalModal() {
+    closeModal('editApprovalModal');
+    document.getElementById('editApprovalName').value = '';
+    document.getElementById('editApprovalCategory').innerHTML = '';
+    document.getElementById('editApprovalError').style.display = 'none';
+    document.getElementById('editApprovalDupWarning').style.display = 'none';
+    document.getElementById('editApprovalSaveBtn').disabled = false;
+  }
+
+  async function submitEditApproval() {
+    var btn = document.getElementById('editApprovalSaveBtn');
+    btn.disabled = true;
+    try {
+      var appId = document.getElementById('editApprovalAppId').value;
+      var newName = document.getElementById('editApprovalName').value.trim();
+      var newCategoryId = document.getElementById('editApprovalCategory').value;
+
+      if (!newName) {
+        document.getElementById('editApprovalError').textContent = '请输入名称';
+        document.getElementById('editApprovalError').style.display = '';
+        btn.disabled = false;
+        return;
+      }
+
+      var isAdminUser = isAdmin();
+      var leaderGroup = getLeaderGroup();
+      var newVisibility, newGroupId;
+      if (!isAdminUser && leaderGroup) {
+        var db = getDbSync();
+        var rootU2 = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+        var pl = (rootU2 && db.userData[rootU2]?.pendingBookmarks) || [];
+        var ta = pl.find(function(p) { return p.id === appId; });
+        newVisibility = ta ? ta.visibility : 'group';
+        newGroupId = ta && ta.visibleGroupIds ? ta.visibleGroupIds[0] : null;
+      } else {
+        var visRadio = document.querySelector('input[name="editApprovalVis"]:checked');
+        newVisibility = visRadio ? visRadio.value : 'all';
+        if (newVisibility === 'group') {
+          var db2 = getDbSync();
+          var rootU3 = Object.keys(db2.users).find(function(u) { return db2.users[u]?.role === 'root'; });
+          var pl2 = (rootU3 && db2.userData[rootU3]?.pendingBookmarks) || [];
+          var ta2 = pl2.find(function(p) { return p.id === appId; });
+          newGroupId = ta2 ? (ta2.visibleGroupIds?.[0] || ta2.suggestedByGroupIds?.[0]) : null;
+        } else {
+          newGroupId = null;
+        }
+      }
+
+      await approveWithEdit(appId, newName, newCategoryId, newVisibility, newGroupId);
+    } catch (e) {
+      console.error('编辑后批准失败:', e);
+      showToast('操作失败，请重试');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function approveWithEdit(appId, newName, newCategoryId, newVisibility, newGroupId) {
+    var freshDb = await getDb();
+    var rootU = Object.keys(freshDb.users).find(function(u) { return freshDb.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    var pendingList = freshDb.userData[rootU]?.pendingBookmarks || [];
+    var targetApp = pendingList.find(function(p) { return p.id === appId; });
+    if (!targetApp || targetApp.status !== 'pending') {
+      showToast('该申请已被处理，请刷新后重试'); return;
+    }
+
+    var existingBms = freshDb.userData[rootU]?.bookmarks || [];
+    if (existingBms.some(function(b) { return b.url === targetApp.url; })) {
+      showToast('该链接已在系统中，请先拒绝此申请'); return;
+    }
+
+    var safeName = escapeHtml(newName);
+
+    var allCats = freshDb.userData[rootU]?.categories || [];
+    var catExists = allCats.some(function(c) { return c.id === newCategoryId; });
+    if (!catExists) {
+      showToast('该分类不存在，请重新选择分类'); return;
+    }
+
+    var newBmId = genId();
+    var newBm = {
+      id: newBmId, name: safeName, url: targetApp.url,
+      categoryId: newCategoryId, views: [],
+      sortOrder: (freshDb.userData[rootU]?.bookmarks || []).length,
+      createdAt: Date.now(), createdBy: targetApp.suggestedBy
+    };
+    if (!freshDb.userData[rootU].bookmarks) freshDb.userData[rootU].bookmarks = [];
+    freshDb.userData[rootU].bookmarks.push(newBm);
+
+    if (newVisibility === 'group' && newGroupId) {
+      if (!freshDb.userData[rootU].permissions) freshDb.userData[rootU].permissions = {};
+      var perms = freshDb.userData[rootU].permissions;
+      var groupKey = 'group:' + newGroupId;
+      if (!perms[groupKey]) perms[groupKey] = { categories: [], bookmarks: [] };
+      if (!perms[groupKey].bookmarks) perms[groupKey].bookmarks = [];
+      if (!perms[groupKey].bookmarks.includes(newBmId)) perms[groupKey].bookmarks.push(newBmId);
+    }
+
+    var origName = targetApp.name;
+    var origCatId = targetApp.categoryId;
+    var origVis = targetApp.visibility;
+
+    var editChanges = {};
+    if (safeName !== origName) editChanges.name = { from: origName, to: safeName };
+    if (newCategoryId !== origCatId) {
+      var oldCat = allCats.find(function(c) { return c.id === origCatId; });
+      var newCat = allCats.find(function(c) { return c.id === newCategoryId; });
+      editChanges.category = { from: oldCat ? oldCat.name : '未知', to: newCat ? newCat.name : '未知' };
+    }
+    if (newVisibility !== origVis) {
+      editChanges.visibility = { from: origVis, to: newVisibility };
+    }
+    if (Object.keys(editChanges).length > 0) targetApp.editChanges = editChanges;
+
+    var detailParts = [];
+    if (safeName !== origName) detailParts.push('名称「' + origName + '」→「' + safeName + '」');
+    if (newCategoryId !== origCatId) {
+      var oc = allCats.find(function(c) { return c.id === origCatId; });
+      var nc = allCats.find(function(c) { return c.id === newCategoryId; });
+      detailParts.push('分类「' + (oc ? oc.name : '未知') + '」→「' + (nc ? nc.name : '未知') + '」');
+    }
+    if (newVisibility !== origVis) {
+      detailParts.push('可见范围「' + (origVis === 'group' ? '仅组内' : '全公司') + '」→「' + (newVisibility === 'group' ? '仅组内' : '全公司') + '」');
+    }
+    auditLogForApplication('approve_application', targetApp.suggestedBy, safeName,
+      '批准并编辑了「' + safeName + '」' + (detailParts.length ? ' (' + detailParts.join('，') + ')' : ''),
+      (newVisibility === 'group' ? newGroupId : null));
+
+    targetApp.name = safeName;
+    targetApp.categoryId = newCategoryId;
+    targetApp.visibility = newVisibility;
+    targetApp.status = 'approved';
+    targetApp.reviewedBy = state.currentUser;
+    targetApp.reviewedByRole = (freshDb.users[state.currentUser]?.role) || 'unknown';
+    targetApp.reviewedAt = Date.now();
+
+    cachedDb = freshDb;
+    globalDb = freshDb;
+    localStorage.setItem('my_collection_data', JSON.stringify(freshDb));
+    lastCacheTime = Date.now();
+    await saveDb(freshDb);
+
+    state.pendingBookmarks = freshDb.userData[rootU]?.pendingBookmarks || [];
+    state.bookmarks = freshDb.userData[rootU]?.bookmarks || [];
+    updatePendingBadge();
+    renderApprovalList();
+    renderBookmarks();
+    closeEditApprovalModal();
+    showToast('已批准并编辑了「' + safeName + '」');
+  }
+
   function openMyApplications() {
     var db = getDbSync();
     var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
@@ -6842,6 +7088,13 @@
           html += '<div style="font-size:10px;color:var(--text-muted)">由 ' + p.reviewedBy + '(' + p.reviewedByRole + ') 于 ' + new Date(p.reviewedAt).toLocaleString() + ' 审批</div>';
           if (p.rejectReason) html += '<div style="font-size:10px;color:var(--danger)">原因: ' + escapeHtml(p.rejectReason) + '</div>';
         }
+        if (p.editChanges) {
+          var changeParts = [];
+          if (p.editChanges.name) changeParts.push('名称「' + escapeHtml(p.editChanges.name.from) + '」→「' + escapeHtml(p.editChanges.name.to) + '」');
+          if (p.editChanges.category) changeParts.push('分类「' + escapeHtml(p.editChanges.category.from) + '」→「' + escapeHtml(p.editChanges.category.to) + '」');
+          if (p.editChanges.visibility) changeParts.push('可见范围「' + (p.editChanges.visibility.from === 'group' ? '仅组内' : '全公司') + '」→「' + (p.editChanges.visibility.to === 'group' ? '仅组内' : '全公司') + '」');
+          html += '<div style="font-size:10px;color:var(--accent);margin-top:2px">✏️ 已修改：' + changeParts.join('，') + '</div>';
+        }
         html += '</div>';
       });
       area.innerHTML = html;
@@ -6860,6 +7113,7 @@
     unreported.forEach(function(p) {
       var msg = p.status === 'approved'
         ? '你推荐的「' + p.name + '」已被 ' + p.reviewedBy + ' 批准！'
+          + (p.editChanges ? '（内容已调整）' : '')
         : '你推荐的「' + p.name + '」已被拒绝' + (p.rejectReason ? '，原因: ' + p.rejectReason : '');
       setTimeout(function() { showToast(msg); }, 500);
       p.notified = true;
