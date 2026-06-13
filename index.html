@@ -1184,7 +1184,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.1</div>
     </div>
   </aside>
 
@@ -6683,7 +6683,7 @@
       var dupUrl = existingBms.some(function(b) { return b.url === p.url; });
       html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
       html += '<div style="font-weight:500;margin-bottom:4px">' + escapeHtml(p.suggestedBy) + ' 推荐了「' + escapeHtml(p.name) + '」</div>';
-      html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">🔗 ' + escapeHtml(p.url) + ' | 📁 ' + catName + ' | 👁 ' + visText + ' | 📅 ' + new Date(p.createdAt).toLocaleString() + '</div>';
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">🔗 <a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escapeHtml(p.url) + '</a> <span style="cursor:pointer" data-copy-url="' + escapeHtml(p.url) + '" onclick="event.stopPropagation();copyUrlToClipboard(this.dataset.copyUrl)" title="复制链接">📋</span> | 📁 ' + catName + ' | 👁 ' + visText + ' | 📅 ' + new Date(p.createdAt).toLocaleString() + '</div>';
       if (dupUrl && p.status === 'pending') html += '<div style="font-size:11px;color:var(--warning);background:#fff3cd;padding:2px 6px;border-radius:3px;margin-bottom:4px">⚠️ 系统中已有相同链接</div>';
       if (p.status === 'pending') {
         html += '<div style="display:flex;gap:6px;margin-top:6px">';
@@ -6798,7 +6798,7 @@
         var statusColor = p.status === 'pending' ? 'var(--text-muted)' : (p.status === 'approved' ? 'var(--success)' : 'var(--danger)');
         html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
         html += '<div style="font-weight:500">' + escapeHtml(p.name) + '</div>';
-        html += '<div style="font-size:11px;color:var(--text-muted)">🔗 ' + escapeHtml(p.url) + ' | 📁 ' + (cat ? cat.name : '未知') + '</div>';
+        html += '<div style="font-size:11px;color:var(--text-muted)">🔗 <a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escapeHtml(p.url) + '</a> <span style="cursor:pointer" data-copy-url="' + escapeHtml(p.url) + '" onclick="event.stopPropagation();copyUrlToClipboard(this.dataset.copyUrl)" title="复制链接">📋</span> | 📁 ' + (cat ? cat.name : '未知') + '</div>';
         html += '<div style="font-size:11px;color:' + statusColor + ';margin-top:4px">' + statusIcon + '</div>';
         if (p.reviewedBy) {
           html += '<div style="font-size:10px;color:var(--text-muted)">由 ' + p.reviewedBy + '(' + p.reviewedByRole + ') 于 ' + new Date(p.reviewedAt).toLocaleString() + ' 审批</div>';
