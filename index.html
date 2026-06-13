@@ -1216,7 +1216,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.4</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.5</div>
     </div>
   </aside>
 
@@ -7073,30 +7073,79 @@
     if (mine.length === 0) {
       area.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:40px">暂无申请记录</div>';
     } else {
+      mine.sort(function(a, b) {
+        var order = { 'pending': 0, 'approved': 1, 'rejected': 2 };
+        var aOrd = order[a.status] !== undefined ? order[a.status] : 2;
+        var bOrd = order[b.status] !== undefined ? order[b.status] : 2;
+        if (aOrd !== bOrd) return aOrd - bOrd;
+        var aTime = a.status !== 'pending' ? (a.reviewedAt || 0) : (a.createdAt || 0);
+        var bTime = b.status !== 'pending' ? (b.reviewedAt || 0) : (b.createdAt || 0);
+        return bTime - aTime;
+      });
+      var pendingCount = mine.filter(function(p) { return p.status === 'pending'; }).length;
+      var approvedCount = mine.filter(function(p) { return p.status === 'approved'; }).length;
+      var rejectedCount = mine.filter(function(p) { return p.status === 'rejected'; }).length;
+      var cats = db.userData[rootU]?.categories || [];
       var html = '';
-      mine.forEach(function(p) {
-        var db2 = getDbSync();
-        var cats = db2.userData[rootU]?.categories || [];
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0 12px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:8px">';
+      html += '<span>📊 共 ' + mine.length + ' 条</span>';
+      html += '<span>⏳ 待审批 ' + pendingCount + '</span>';
+      html += '<span style="color:var(--success)">✅ 已通过 ' + approvedCount + '</span>';
+      html += '<span style="color:var(--danger)">❌ 已拒绝 ' + rejectedCount + '</span>';
+      html += '</div>';
+      function renderAppCard(p) {
         var cat = cats.find(function(c) { return c.id === p.categoryId; });
         var statusIcon = p.status === 'pending' ? '⏳ 待审批' : (p.status === 'approved' ? '✅ 已通过' : '❌ 已拒绝');
         var statusColor = p.status === 'pending' ? 'var(--text-muted)' : (p.status === 'approved' ? 'var(--success)' : 'var(--danger)');
-        html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
-        html += '<div style="font-weight:500">' + escapeHtml(p.name) + '</div>';
-        html += '<div style="font-size:11px;color:var(--text-muted)">🔗 <a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escapeHtml(p.url) + '</a> <span style="cursor:pointer" data-copy-url="' + escapeHtml(p.url) + '" onclick="event.stopPropagation();copyUrlToClipboard(this.dataset.copyUrl)" title="复制链接">📋</span> | 📁 ' + (cat ? cat.name : '未知') + '</div>';
-        html += '<div style="font-size:11px;color:' + statusColor + ';margin-top:4px">' + statusIcon + '</div>';
+        var card = '';
+        card += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
+        card += '<div style="font-weight:500">' + escapeHtml(p.name) + '</div>';
+        card += '<div style="font-size:11px;color:var(--text-muted)">🔗 <a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escapeHtml(p.url) + '</a> <span style="cursor:pointer" data-copy-url="' + escapeHtml(p.url) + '" onclick="event.stopPropagation();copyUrlToClipboard(this.dataset.copyUrl)" title="复制链接">📋</span> | 📁 ' + (cat ? cat.name : '未知') + '</div>';
+        card += '<div style="font-size:11px;color:' + statusColor + ';margin-top:4px">' + statusIcon + '</div>';
         if (p.reviewedBy) {
-          html += '<div style="font-size:10px;color:var(--text-muted)">由 ' + p.reviewedBy + '(' + p.reviewedByRole + ') 于 ' + new Date(p.reviewedAt).toLocaleString() + ' 审批</div>';
-          if (p.rejectReason) html += '<div style="font-size:10px;color:var(--danger)">原因: ' + escapeHtml(p.rejectReason) + '</div>';
+          card += '<div style="font-size:10px;color:var(--text-muted)">由 ' + p.reviewedBy + '(' + p.reviewedByRole + ') 于 ' + new Date(p.reviewedAt).toLocaleString() + ' 审批</div>';
+          if (p.rejectReason) card += '<div style="font-size:10px;color:var(--danger)">原因: ' + escapeHtml(p.rejectReason) + '</div>';
         }
         if (p.editChanges) {
           var changeParts = [];
           if (p.editChanges.name) changeParts.push('名称「' + escapeHtml(p.editChanges.name.from) + '」→「' + escapeHtml(p.editChanges.name.to) + '」');
           if (p.editChanges.category) changeParts.push('分类「' + escapeHtml(p.editChanges.category.from) + '」→「' + escapeHtml(p.editChanges.category.to) + '」');
           if (p.editChanges.visibility) changeParts.push('可见范围「' + (p.editChanges.visibility.from === 'group' ? '仅组内' : '全公司') + '」→「' + (p.editChanges.visibility.to === 'group' ? '仅组内' : '全公司') + '」');
-          html += '<div style="font-size:10px;color:var(--accent);margin-top:2px">✏️ 已修改：' + changeParts.join('，') + '</div>';
+          card += '<div style="font-size:10px;color:var(--accent);margin-top:2px">✏️ 已修改：' + changeParts.join('，') + '</div>';
         }
+        card += '</div>';
+        return card;
+      }
+      var pendingItems = mine.filter(function(p) { return p.status === 'pending'; });
+      if (pendingItems.length > 0) {
+        html += '<div class="perm-cat-header group-toggle" data-target="pendingGroup" style="display:flex;align-items:center;padding:6px 0;cursor:pointer;font-size:13px;color:var(--text-primary);font-weight:500" onclick="var e=document.getElementById(\'pendingGroup\');var t=this.querySelector(\'.gp-toggle\');var d=e.style.display;e.style.display=d===\'none\'?\'\':\'none\';t.textContent=t.textContent===\'▶\'?\'▼\':\'▶\';">';
+        html += '<span class="gp-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">▼</span>';
+        html += '<span>⏳ 待审批（' + pendingItems.length + '）</span>';
         html += '</div>';
-      });
+        html += '<div id="pendingGroup" style="padding-left:18px">';
+        pendingItems.forEach(function(p) { html += renderAppCard(p); });
+        html += '</div>';
+      }
+      var approvedItems = mine.filter(function(p) { return p.status === 'approved'; });
+      if (approvedItems.length > 0) {
+        html += '<div class="perm-cat-header group-toggle" data-target="approvedGroup" style="display:flex;align-items:center;padding:6px 0;cursor:pointer;font-size:13px;color:var(--text-primary);font-weight:500;margin-top:4px" onclick="var e=document.getElementById(\'approvedGroup\');var t=this.querySelector(\'.gp-toggle\');var d=e.style.display;e.style.display=d===\'none\'?\'\':\'none\';t.textContent=t.textContent===\'▶\'?\'▼\':\'▶\';">';
+        html += '<span class="gp-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">▶</span>';
+        html += '<span>✅ 已通过（' + approvedItems.length + '）</span>';
+        html += '</div>';
+        html += '<div id="approvedGroup" style="padding-left:18px;display:none">';
+        approvedItems.forEach(function(p) { html += renderAppCard(p); });
+        html += '</div>';
+      }
+      var rejectedItems = mine.filter(function(p) { return p.status === 'rejected'; });
+      if (rejectedItems.length > 0) {
+        html += '<div class="perm-cat-header group-toggle" data-target="rejectedGroup" style="display:flex;align-items:center;padding:6px 0;cursor:pointer;font-size:13px;color:var(--text-primary);font-weight:500;margin-top:4px" onclick="var e=document.getElementById(\'rejectedGroup\');var t=this.querySelector(\'.gp-toggle\');var d=e.style.display;e.style.display=d===\'none\'?\'\':\'none\';t.textContent=t.textContent===\'▶\'?\'▼\':\'▶\';">';
+        html += '<span class="gp-toggle" style="width:18px;text-align:center;font-size:10px;color:var(--text-muted)">▶</span>';
+        html += '<span>❌ 已拒绝（' + rejectedItems.length + '）</span>';
+        html += '</div>';
+        html += '<div id="rejectedGroup" style="padding-left:18px;display:none">';
+        rejectedItems.forEach(function(p) { html += renderAppCard(p); });
+        html += '</div>';
+      }
       area.innerHTML = html;
     }
     document.getElementById('myApplicationsModal').classList.add('show');
