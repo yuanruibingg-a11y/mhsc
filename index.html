@@ -1199,7 +1199,7 @@
           <span class="search-icon">🔍</span>
           <input type="text" id="searchInput" placeholder="搜索收藏..." oninput="renderBookmarks()">
         </div>
-        <button class="btn btn-primary editing-only" onclick="openBookmarkModal()">+ 添加</button>
+        <button class="btn btn-primary editing-only add-bookmark-btn" onclick="openBookmarkModal()">+ 添加</button>
         <button class="btn btn-sm editing-only" id="batchClassifyBtn" onclick="enterBatchSelectMode()" title="批量分类">📋 批量分类</button>
         <button class="edit-toggle-btn" id="editToggleBtn" onclick="toggleEditMode()" title="编辑模式">✎</button>
       </div>
@@ -4354,12 +4354,25 @@
       document.getElementById('userMgrBtn').style.display = '';
       document.getElementById('leaderPermSection').style.display = 'none';
       document.getElementById('applyBmBtn').style.display = 'none';
+      var addBtn = document.querySelector('.add-bookmark-btn');
+      if (addBtn) {
+        addBtn.textContent = '+ 添加';
+        addBtn.onclick = openBookmarkModal;
+        addBtn.classList.add('editing-only');
+      }
     } else {
       document.getElementById('editToggleBtn').style.display = 'none';
       document.getElementById('userMgrBtn').style.display = 'none';
       const leaderGroup = getLeaderGroup();
       document.getElementById('leaderPermSection').style.display = leaderGroup ? '' : 'none';
       document.getElementById('applyBmBtn').style.display = '';
+      var addBtn = document.querySelector('.add-bookmark-btn');
+      if (addBtn) {
+        addBtn.textContent = '💡 推荐收藏';
+        addBtn.onclick = openApplyBookmarkModal;
+        addBtn.classList.remove('editing-only');
+        addBtn.style.display = '';
+      }
     }
 
     updateMainTitle();
@@ -4393,6 +4406,13 @@
     document.getElementById('leaderPermSection').style.display = 'none';
     document.getElementById('sidebarLogoutRow').style.display = 'none';
     document.getElementById('loginSidebarBtn').style.display = '';
+    document.getElementById('sidebarAppActions').style.display = 'none';
+    var addBtn = document.querySelector('.add-bookmark-btn');
+    if (addBtn) {
+      addBtn.textContent = '+ 添加';
+      addBtn.onclick = openBookmarkModal;
+      addBtn.classList.add('editing-only');
+    }
     renderCategories();
     renderBookmarks();
     showPasswordModal();
@@ -6664,7 +6684,7 @@
       html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">';
       html += '<div style="font-weight:500;margin-bottom:4px">' + escapeHtml(p.suggestedBy) + ' 推荐了「' + escapeHtml(p.name) + '」</div>';
       html += '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">🔗 ' + escapeHtml(p.url) + ' | 📁 ' + catName + ' | 👁 ' + visText + ' | 📅 ' + new Date(p.createdAt).toLocaleString() + '</div>';
-      if (dupUrl) html += '<div style="font-size:11px;color:var(--warning);background:#fff3cd;padding:2px 6px;border-radius:3px;margin-bottom:4px">⚠️ 系统中已有相同链接</div>';
+      if (dupUrl && p.status === 'pending') html += '<div style="font-size:11px;color:var(--warning);background:#fff3cd;padding:2px 6px;border-radius:3px;margin-bottom:4px">⚠️ 系统中已有相同链接</div>';
       if (p.status === 'pending') {
         html += '<div style="display:flex;gap:6px;margin-top:6px">';
         html += '<button class="btn btn-primary btn-sm" onclick="approveBookmarkApplication(\'' + p.id + '\')">✅ 批准</button>';
