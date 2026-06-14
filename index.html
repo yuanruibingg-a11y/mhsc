@@ -4423,7 +4423,7 @@
       var addBtn = document.querySelector('.add-bookmark-btn');
       if (addBtn) {
         addBtn.textContent = '+ 添加';
-        addBtn.onclick = openBookmarkModal;
+        addBtn.onclick = function() { openBookmarkModal(); };
         addBtn.classList.add('editing-only');
       }
     } else {
@@ -4435,7 +4435,7 @@
       var addBtn = document.querySelector('.add-bookmark-btn');
       if (addBtn) {
         addBtn.textContent = '💡 推荐收藏';
-        addBtn.onclick = openApplyBookmarkModal;
+        addBtn.onclick = function() { openApplyBookmarkModal(); };
         addBtn.classList.remove('editing-only');
         addBtn.style.display = '';
       }
@@ -4476,7 +4476,7 @@
     var addBtn = document.querySelector('.add-bookmark-btn');
     if (addBtn) {
       addBtn.textContent = '+ 添加';
-      addBtn.onclick = openBookmarkModal;
+      addBtn.onclick = function() { openBookmarkModal(); };
       addBtn.classList.add('editing-only');
     }
     renderCategories();
