@@ -1223,7 +1223,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.6</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.7</div>
     </div>
   </aside>
 
@@ -6677,7 +6677,15 @@
     document.getElementById('applyBookmarkModal').classList.add('show');
   }
 
+  var APPLY_DAILY_LIMIT = 10;
+
   async function submitBookmarkApplication() {
+    var btn = document.getElementById('applyBmSubmitBtn');
+    var origText = btn ? btn.textContent : '';
+    var origDisabled = btn ? btn.disabled : true;
+    if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
+    try {
+
     var name = document.getElementById('applyBmName').value.trim();
     var url = document.getElementById('applyBmUrl').value.trim();
     var categoryId = document.getElementById('applyBmCategory').value;
@@ -6688,6 +6696,46 @@
     if (!name) { document.getElementById('applyBmError').textContent = '请输入收藏名称'; document.getElementById('applyBmError').style.display = ''; return; }
     if (!url) { document.getElementById('applyBmError').textContent = '请输入链接地址'; document.getElementById('applyBmError').style.display = ''; return; }
     if (!categoryId) { document.getElementById('applyBmError').textContent = '请选择分类'; document.getElementById('applyBmError').style.display = ''; return; }
+
+    if (name.length < 2) {
+      document.getElementById('applyBmError').textContent = '收藏名称至少需要2个字符';
+      document.getElementById('applyBmError').style.display = '';
+      return;
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      document.getElementById('applyBmError').textContent = '链接地址必须以 http:// 或 https:// 开头';
+      document.getElementById('applyBmError').style.display = '';
+      return;
+    }
+
+    var safeUrl = escapeHtml(url);
+
+    var existingBms = rootData.bookmarks || [];
+    var userPerms = getUserFinalPermissions(state.currentUser);
+    var visibleBmIds = new Set(userPerms.bookmarks.map(function(b) { return b.id; }));
+    var visibleOnlyBms = existingBms.filter(function(b) { return visibleBmIds.has(b.id); });
+    if (visibleOnlyBms.some(function(b) { return b.url === url || b.url === safeUrl; })) {
+      document.getElementById('applyBmError').textContent = '该链接已存在于收藏夹中';
+      document.getElementById('applyBmError').style.display = '';
+      return;
+    }
+
+    var existingPending = rootData.pendingBookmarks || [];
+    if (existingPending.some(function(p) { return p.url === safeUrl && p.status === 'pending'; })) {
+      document.getElementById('applyBmError').textContent = '该链接已有人提交申请，请等待审批';
+      document.getElementById('applyBmError').style.display = '';
+      return;
+    }
+
+    var today = new Date().toISOString().slice(0, 10);
+    var todayCount = existingPending.filter(function(p) {
+      return p.suggestedBy === state.currentUser && p.createdAt && new Date(p.createdAt).toISOString().slice(0, 10) === today;
+    }).length;
+    if (todayCount >= APPLY_DAILY_LIMIT) {
+      document.getElementById('applyBmError').textContent = '今日申请已达上限（' + APPLY_DAILY_LIMIT + '条），请明天再试';
+      document.getElementById('applyBmError').style.display = '';
+      return;
+    }
 
     var visRadio = document.querySelector('input[name="applyVis"]:checked');
     var visibility = visRadio ? visRadio.value : 'all';
@@ -6725,6 +6773,10 @@
     closeModal('applyBookmarkModal');
     await savePendingApplication();
     showToast('申请已提交，等待审核');
+
+    } finally {
+      if (btn) { btn.disabled = origDisabled; btn.textContent = origText; }
+    }
   }
 
   function updatePendingBadge() {
