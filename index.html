@@ -3831,12 +3831,13 @@
   }
 
   async function confirmDelete(type, id) {
+    var bm, cat, group;
     const modal = document.getElementById('confirmModal');
     const title = document.getElementById('confirmTitle');
     const text = document.getElementById('confirmText');
 
     if (type === 'group') {
-      const group = state.groups.find(g => g.id === id);
+      group = state.groups.find(g => g.id === id);
       const groupCats = state.categories.filter(c => c.groupId === id);
       const totalBms = groupCats.reduce((sum, c) => sum + getCategoryCount(c.id), 0);
       title.textContent = '删除分组';
@@ -3844,14 +3845,14 @@
         ? `确定要删除分组「${group.name}」吗？该分组下的 ${groupCats.length} 个分类和 ${totalBms} 个收藏也将被一并删除。`
         : `确定要删除分组「${group.name}」吗？`;
     } else if (type === 'category') {
-      const cat = state.categories.find(c => c.id === id);
+      cat = state.categories.find(c => c.id === id);
       const count = getCategoryCount(id);
       title.textContent = '删除分类';
       text.textContent = count > 0
         ? `确定要删除分类「${cat.name}」吗？该分类下的 ${count} 个收藏也将被一并删除。`
         : `确定要删除分类「${cat.name}」吗？`;
     } else {
-      const bm = state.bookmarks.find(b => b.id === id);
+      bm = state.bookmarks.find(b => b.id === id);
       title.textContent = '删除收藏';
       var creatorHint = '';
       if (bm) {
