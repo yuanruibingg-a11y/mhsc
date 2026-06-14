@@ -3913,6 +3913,7 @@
       } else {
         addAuditLog('delete_bookmark', 'bookmark', bm.id, bm.name, '删除了收藏「' + bm.name + '」', null);
       }
+      lastCacheTime = Date.now();
       await saveUserData();
       closeModal('confirmModal');
       renderCategories();
