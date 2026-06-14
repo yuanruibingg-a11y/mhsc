@@ -878,25 +878,32 @@
 
   .toast {
     position: fixed;
-    bottom: 30px;
+    top: 40%;
     left: 50%;
-    transform: translateX(-50%) translateY(100px);
-    background: var(--bg-card);
+    transform: translate(-50%, -50%);
+    background: var(--bg-secondary);
     color: var(--text-primary);
-    padding: 12px 24px;
+    padding: 14px 28px;
+    border-left: 4px solid var(--accent);
     border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow);
-    font-size: 14px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    font-size: 15px;
+    font-weight: 500;
     z-index: 200;
     opacity: 0;
-    transition: all 0.3s ease;
+    transition: opacity 0.3s ease;
     pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .toast.show {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
   }
+  .toast-info    { border-left-color: var(--accent); }
+  .toast-success { border-left-color: var(--success); }
+  .toast-error   { border-left-color: var(--danger); }
+  .toast-warning { border-left-color: var(--warning); }
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -1216,7 +1223,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.5</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.6</div>
     </div>
   </aside>
 
@@ -1282,7 +1289,7 @@
     </div>
     <div class="form-actions">
       <button class="btn btn-cancel" onclick="closeModal('bookmarkModal')">取消</button>
-      <button class="btn btn-primary" onclick="saveBookmark()">保存</button>
+      <button class="btn btn-primary" id="saveBookmarkBtn" onclick="saveBookmark()">保存</button>
     </div>
   </div>
 </div>
@@ -1315,7 +1322,7 @@
     </div>
     <div class="form-actions">
       <button class="btn btn-cancel" onclick="closeModal('categoryModal')">取消</button>
-      <button class="btn btn-primary" onclick="saveCategory()">保存</button>
+      <button class="btn btn-primary" id="saveCategoryBtn" onclick="saveCategory()">保存</button>
     </div>
   </div>
 </div>
@@ -1335,7 +1342,7 @@
     </div>
     <div class="form-actions">
       <button class="btn btn-cancel" onclick="closeModal('groupModal')">取消</button>
-      <button class="btn btn-primary" onclick="saveGroup()">保存</button>
+      <button class="btn btn-primary" id="saveGroupBtn" onclick="saveGroup()">保存</button>
     </div>
   </div>
 </div>
@@ -1734,7 +1741,10 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast toast-info" id="toast">
+  <span class="toast-icon"></span>
+  <span class="toast-text"></span>
+</div>
 
 <!-- 申请收藏弹窗 -->
 <div class="modal-overlay" id="applyBookmarkModal">
@@ -1844,7 +1854,8 @@
     collapsedGroups: [],
     starred: [],
     batchSelectMode: false,
-    batchSelectedIds: new Set()
+    batchSelectedIds: new Set(),
+    isProcessing: false
   };
   let confirmCallback = null;
 
@@ -2018,6 +2029,7 @@
 
   // 保存数据到 Supabase
   async function saveDb(db) {
+    showToast('正在保存…', 'info');
     initSupabase();
     
     // 更新缓存
@@ -3401,6 +3413,10 @@
   }
 
   async function saveBookmark() {
+    var btn = document.getElementById('saveBookmarkBtn');
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '操作中…'; }
+    try {
     const name = document.getElementById('bookmarkName').value.trim();
     const url = document.getElementById('bookmarkUrl').value.trim();
     const customIcon = document.getElementById('bookmarkCustomIcon').value.trim();
@@ -3497,6 +3513,9 @@
     renderCategories();
     renderBookmarks();
     showToast(editId ? '已更新收藏' : '已添加收藏');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
   }
 
   function addViewRow(data) {
@@ -3664,6 +3683,10 @@
   }
 
   async function saveCategory() {
+    var btn = document.getElementById('saveCategoryBtn');
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '操作中…'; }
+    try {
     const name = document.getElementById('categoryName').value.trim();
     const icon = document.getElementById('categoryIcon').value.trim() || '📁';
     const editId = document.getElementById('editCategoryId').value;
@@ -3740,6 +3763,9 @@
     updateMainTitle();
     renderBookmarks();
     showToast(editId ? '已更新分类' : '已新建分类');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
   }
 
   function openGroupModal(id) {
@@ -3767,6 +3793,10 @@
   }
 
   async function saveGroup() {
+    var btn = document.getElementById('saveGroupBtn');
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '操作中…'; }
+    try {
     const name = document.getElementById('groupName').value.trim();
     const icon = document.getElementById('groupIcon').value.trim() || '📁';
     const editId = document.getElementById('editGroupId').value;
@@ -3795,6 +3825,9 @@
     closeModal('groupModal');
     renderCategories();
     showToast(editId ? '已更新分组' : '已新建分组');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
   }
 
   async function confirmDelete(type, id) {
@@ -3890,8 +3923,17 @@
     modal.classList.add('show');
   }
 
-  function confirmAction() {
-    if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+  async function confirmAction() {
+    if (!confirmCallback) return;
+    var btn = document.getElementById('confirmBtn');
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '操作中…'; }
+    try {
+      await confirmCallback();
+      confirmCallback = null;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
   }
 
   function showConfirmDialog(title, text, btnText, btnStyle, callback) {
@@ -3914,9 +3956,21 @@
     confirmCallback = null;
   }
 
-  function showToast(msg) {
+  function showToast(msg, type) {
+    type = type || 'info';
     const el = document.getElementById('toast');
-    el.textContent = msg;
+    if (!el) return;
+    const iconEl = el.querySelector('.toast-icon');
+    const textEl = el.querySelector('.toast-text');
+    const icons = { info: 'ℹ️', success: '✅', error: '❌', warning: '⚠️' };
+    if (iconEl) iconEl.textContent = icons[type] || 'ℹ️';
+    if (textEl) {
+      textEl.textContent = msg;
+    } else {
+      el.textContent = msg;
+    }
+    el.classList.remove('toast-info', 'toast-success', 'toast-error', 'toast-warning');
+    el.classList.add('toast-' + type);
     el.classList.add('show');
     clearTimeout(el._timer);
     el._timer = setTimeout(() => el.classList.remove('show'), 2200);
@@ -6773,6 +6827,9 @@
   }
 
   async function approveBookmarkApplication(appId) {
+    if (state.isProcessing) return;
+    state.isProcessing = true;
+    try {
     var freshDb = await getDb();
     var rootU = Object.keys(freshDb.users).find(function(u) { return freshDb.users[u]?.role === 'root'; });
     if (!rootU) return;
@@ -6827,9 +6884,15 @@
     renderApprovalList();
     renderBookmarks();
     showToast('已批准「' + targetApp.name + '」');
+    } finally {
+      state.isProcessing = false;
+    }
   }
 
   async function rejectBookmarkApplication(appId) {
+    if (state.isProcessing) return;
+    state.isProcessing = true;
+    try {
     var reason = prompt('请输入拒绝原因（可选）:');
     var freshDb = await getDb();
     var rootU = Object.keys(freshDb.users).find(function(u) { return freshDb.users[u]?.role === 'root'; });
@@ -6858,6 +6921,9 @@
     updatePendingBadge();
     renderApprovalList();
     showToast('已拒绝「' + targetApp.name + '」');
+    } finally {
+      state.isProcessing = false;
+    }
   }
 
   async function openEditApprovalModal(appId) {
