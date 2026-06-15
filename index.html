@@ -2013,6 +2013,35 @@
         console.warn('⚠️ 合并本地数据失败，使用 Supabase 数据:', mergeErr);
       }
 
+      // 合并本地 userStats（登录统计不丢失）
+      try {
+        var localRaw2 = localStorage.getItem('my_collection_data');
+        if (localRaw2) {
+          var localDb2 = JSON.parse(localRaw2);
+          var srU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+          var lrU = Object.keys(localDb2.users).find(function(u) { return localDb2.users[u]?.role === 'root'; });
+          if (srU && lrU && localDb2.userData[lrU]?.userStats) {
+            var supStats = (db.userData[srU] && db.userData[srU].userStats) ? db.userData[srU].userStats : {};
+            if (!db.userData[srU]) db.userData[srU] = {};
+            db.userData[srU].userStats = Object.assign({}, supStats);
+            var localStats = localDb2.userData[lrU].userStats;
+            for (var uname in localStats) {
+              if (localStats.hasOwnProperty(uname)) {
+                var ls = localStats[uname];
+                var ss = supStats[uname];
+                if (!ss) { db.userData[srU].userStats[uname] = Object.assign({}, ls); }
+                else {
+                  if (ls.lastLoginAt > ss.lastLoginAt) ss.lastLoginAt = ls.lastLoginAt;
+                  if (ls.loginCount > ss.loginCount) ss.loginCount = ls.loginCount;
+                  if (ls.createdAt && !ss.createdAt) ss.createdAt = ls.createdAt;
+                  db.userData[srU].userStats[uname] = ss;
+                }
+              }
+            }
+          }
+        }
+      } catch(e) {}
+
       localStorage.setItem('my_collection_data', JSON.stringify(db));
       
       return db;
@@ -2423,13 +2452,6 @@
     }
     lastCacheTime = Date.now();
     localStorage.setItem('my_collection_data', JSON.stringify(db));
-    if (sbClient && rootU) {
-      try {
-        sbClient.from('user_data').upsert({
-          username: rootU, data: db.userData[rootU], updated_at: new Date().toISOString()
-        }, { onConflict: 'username' });
-      } catch(e) {}
-    }
   }
 
   async function saveUserData() {
