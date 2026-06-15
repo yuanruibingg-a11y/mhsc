@@ -2424,9 +2424,11 @@
     lastCacheTime = Date.now();
     localStorage.setItem('my_collection_data', JSON.stringify(db));
     if (sbClient && rootU) {
-      sbClient.from('user_data').upsert({
-        username: rootU, data: db.userData[rootU], updated_at: new Date().toISOString()
-      }, { onConflict: 'username' }).catch(function(e) { console.error('同步统计失败:', e); });
+      try {
+        sbClient.from('user_data').upsert({
+          username: rootU, data: db.userData[rootU], updated_at: new Date().toISOString()
+        }, { onConflict: 'username' });
+      } catch(e) {}
     }
   }
 
