@@ -1223,7 +1223,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.20.7</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.21.0</div>
     </div>
   </aside>
 
@@ -1502,6 +1502,8 @@
         </div>
       </div>
       
+      <div id="userStatsBar" style="font-size:12px;color:var(--text-muted);padding:4px 0;margin-bottom:6px"></div>
+
       <!-- 顶部工具栏：批量操作 -->
       <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ 添加用户</button>
@@ -1855,7 +1857,8 @@
     starred: [],
     batchSelectMode: false,
     batchSelectedIds: new Set(),
-    isProcessing: false
+    isProcessing: false,
+    userStats: {}
   };
   let confirmCallback = null;
 
@@ -2329,6 +2332,7 @@
     if (rootUser) {
       state.pendingBookmarks = (db.userData[rootUser]?.pendingBookmarks) || [];
       state.auditLogs = (db.userData[rootUser]?.auditLogs) || [];
+      state.userStats = (db.userData[rootUser]?.userStats) || {};
     } else {
       state.pendingBookmarks = [];
       state.auditLogs = [];
@@ -2391,6 +2395,33 @@
       hasSecurity: !!info.securityA,
       isMock: !!info.isMock
     }));
+  }
+
+  function formatTimeAgo(ts) {
+    if (!ts || ts === 0) return '从未登录';
+    var diff = Date.now() - ts;
+    if (diff < 60000) return '刚刚登录';
+    if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前登录';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前登录';
+    if (diff < 2592000000) return Math.floor(diff / 86400000) + '天前登录';
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function updateUserStats(username) {
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    if (!db.userData[rootU]) db.userData[rootU] = {};
+    if (!db.userData[rootU].userStats) db.userData[rootU].userStats = {};
+    var stats = db.userData[rootU].userStats;
+    if (!stats[username]) {
+      stats[username] = { lastLoginAt: Date.now(), loginCount: 1, createdAt: Date.now() };
+    } else {
+      stats[username].lastLoginAt = Date.now();
+      stats[username].loginCount = (stats[username].loginCount || 0) + 1;
+    }
+    lastCacheTime = Date.now();
   }
 
   async function saveUserData() {
@@ -2488,6 +2519,18 @@
     existing.auditLogs = mergedLogs;
     existing.permissions = mergedPerms;
     existing.accountGroups = mergedAccountGroups;
+
+    // 合并 userStats
+    var mergedStats = Object.assign({}, existing.userStats || {});
+    var incomingStats = db.userData[targetUser]?.userStats;
+    if (incomingStats) {
+      for (var uname in incomingStats) {
+        if (incomingStats.hasOwnProperty(uname)) {
+          mergedStats[uname] = mergedStats[uname] ? Object.assign(mergedStats[uname], incomingStats[uname]) : Object.assign({}, incomingStats[uname]);
+        }
+      }
+    }
+    existing.userStats = mergedStats;
 
     // 统一截断
     if (existing.pendingBookmarks && existing.pendingBookmarks.length > 200) {
@@ -4445,6 +4488,7 @@
   }
 
   function afterLogin() {
+    updateUserStats(state.currentUser);
     try {
       var pwdVer = getUserPwdVer(state.currentUser);
       localStorage.setItem('currentUser', JSON.stringify({ username: state.currentUser, pwdVer: pwdVer }));
@@ -4606,6 +4650,12 @@
     if (!db.userData) db.userData = {};
     // 新用户注册时创建空的 user_data（后续由权限管理填充可见内容）
     db.userData[username] = { categories: [], bookmarks: [] };
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (rootU) {
+      if (!db.userData[rootU]) db.userData[rootU] = {};
+      if (!db.userData[rootU].userStats) db.userData[rootU].userStats = {};
+      db.userData[rootU].userStats[username] = { lastLoginAt: 0, loginCount: 0, createdAt: Date.now() };
+    }
     saveDb(db);
 
     closeModal('registerModal');
@@ -4779,6 +4829,7 @@
     const allUsersKeys = Object.keys(db.users);
     const rootUser = allUsersKeys.find(u => db.users[u]?.role === 'root');
     const accountGroups = (rootUser && db.userData[rootUser]?.accountGroups) || [];
+    const allStats = (rootUser && db.userData[rootUser]?.userStats) || {};
     
     let users = allUsers.filter(u => {
       if (searchText && !u.username.toLowerCase().includes(searchText)) {
@@ -4799,10 +4850,11 @@
         <span style="flex:0.5;text-align:center">
           <input type="checkbox" id="selectAllUsers" onchange="selectAllUsers(this.checked)" ${users.filter(u => u.role !== 'root').length > 0 && users.filter(u => u.role !== 'root').every(u => selectedUsers.has(u.username)) ? 'checked' : ''} style="cursor:pointer">
         </span>
-        <span style="flex:2.5">账号</span>
-        <span style="flex:1;text-align:center">角色</span>
-        <span style="flex:1;text-align:center">状态</span>
-        <span style="flex:1;text-align:center">操作</span>
+        <span style="flex:2">账号</span>
+        <span style="flex:0.8;text-align:center">角色</span>
+        <span style="flex:0.8;text-align:center">状态</span>
+        <span style="flex:1.4;text-align:center">活跃度</span>
+        <span style="flex:0.5;text-align:center">操作</span>
       </div>
     `;
     users.forEach(u => {
@@ -4838,22 +4890,36 @@
       if (canEdit) {
         actionText += `<button class="nav-btn" onclick="openEditUserModal('${u.username}')" title="编辑用户">✏️</button>`;
       }
-      
+
+      var statsHtml = '';
+      var stats = allStats[u.username];
+      if (isRoot) {
+        statsHtml = '<span style="font-size:11px;color:var(--text-muted)">—</span>';
+      } else if (stats) {
+        var timeStr = formatTimeAgo(stats.lastLoginAt);
+        var dormant = stats.lastLoginAt && (Date.now() - stats.lastLoginAt) > 2592000000;
+        var dormantMark = dormant ? ' ⚠️' : '';
+        statsHtml = '<span style="font-size:11px;color:' + (dormant ? 'var(--warning)' : 'var(--text-muted)') + '">📅 ' + timeStr + ' · 登录' + (stats.loginCount || 0) + '次' + dormantMark + '</span>';
+      } else {
+        statsHtml = '<span style="font-size:11px;color:var(--text-muted)">📅 从未登录</span>';
+      }
+
       html += `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px">
           <span style="flex:0.5;text-align:center">
             <input type="checkbox" class="user-checkbox" data-username="${u.username}" ${isRoot ? '' : selectedUsers.has(u.username) ? 'checked' : ''} ${isRoot ? 'disabled' : ''} onchange="toggleUserSelect('${u.username}', this.checked)" style="cursor:${isRoot ? 'not-allowed' : 'pointer'}">
           </span>
-          <span style="flex:2.5;font-weight:${fontWeight};color:${userColor}">
+          <span style="flex:2;font-weight:${fontWeight};color:${userColor}">
             ${u.username} ${extraText}${groupTags ? '<br>' : ''}<span style="display:inline-block;margin-top:${groupTags ? '2px' : '0'}">${groupTags}</span>
           </span>
-          <span style="flex:1;text-align:center">
+          <span style="flex:0.8;text-align:center">
             <span style="font-size:11px;color:${isRoot ? 'var(--accent)' : 'var(--text-primary)'};font-weight:600">${isRoot ? '超级' : isAdmin ? '管理' : '普通'}</span>
           </span>
-          <span style="flex:1;text-align:center">
+          <span style="flex:0.8;text-align:center">
             <span style="font-size:11px;color:${statusColor};background:${statusBg};padding:2px 8px;border-radius:10px">${statusText}</span>
           </span>
-          <span style="flex:1;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
+          <span style="flex:1.4;text-align:center">${statsHtml}</span>
+          <span style="flex:0.5;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
         </div>
       `;
     });
@@ -4874,6 +4940,25 @@
       titleEl.textContent = '全部用户';
     }
     countEl.textContent = `${users.length} 个用户`;
+
+    var totalUsers = Object.keys(db.users).length;
+    var activeCount = 0;
+    var dormantCount = 0;
+    var disabledCount = 0;
+    var allUserKeys = Object.keys(db.users);
+    for (var i = 0; i < allUserKeys.length; i++) {
+      var uname = allUserKeys[i];
+      var uinfo = db.users[uname];
+      if (uinfo.enabled === false) { disabledCount++; continue; }
+      var st = allStats[uname];
+      if (!st || !st.lastLoginAt || st.lastLoginAt === 0) { dormantCount++; continue; }
+      if (Date.now() - st.lastLoginAt > 2592000000) { dormantCount++; continue; }
+      activeCount++;
+    }
+    var statsBarEl = document.getElementById('userStatsBar');
+    if (statsBarEl) {
+      statsBarEl.innerHTML = '📊 共 ' + totalUsers + ' 人 · 活跃 ' + activeCount + ' 人 · 休眠 ' + dormantCount + ' 人 · 禁用 ' + disabledCount + ' 人';
+    }
   }
 
   function batchEnableUsers() {
@@ -4986,6 +5071,9 @@
           }
           if (rootUser && db.userData[rootUser]?._enabled_states) {
             delete db.userData[rootUser]._enabled_states[username];
+          }
+          if (rootUser && db.userData[rootUser]?.userStats) {
+            delete db.userData[rootUser].userStats[username];
           }
         });
         
@@ -5220,6 +5308,12 @@
     };
     if (!db.userData) db.userData = {};
     db.userData[username] = { categories: [], bookmarks: [] };
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (rootU) {
+      if (!db.userData[rootU]) db.userData[rootU] = {};
+      if (!db.userData[rootU].userStats) db.userData[rootU].userStats = {};
+      db.userData[rootU].userStats[username] = { lastLoginAt: 0, loginCount: 0, createdAt: Date.now() };
+    }
     setUserPwdVer(username, 1);
     addAuditLog('create_user', 'user', username, username, '添加了用户「' + username + '」', null);
     saveDb(db);
