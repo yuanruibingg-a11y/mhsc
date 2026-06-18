@@ -2459,6 +2459,20 @@
     }
   }
 
+  function incrementUserStat(username, field) {
+    if (!username) return;
+    var db = getDbSync();
+    var rootU = Object.keys(db.users).find(function(u) { return db.users[u]?.role === 'root'; });
+    if (!rootU) return;
+    if (!db.userData[rootU]) db.userData[rootU] = {};
+    if (!db.userData[rootU].userStats) db.userData[rootU].userStats = {};
+    var stats = db.userData[rootU].userStats;
+    if (!stats[username]) {
+      stats[username] = { lastLoginAt: 0, loginCount: 0, createdAt: 0 };
+    }
+    stats[username][field] = (stats[username][field] || 0) + 1;
+  }
+
   async function saveUserData() {
     if (!state.currentUser) return;
     var db = getDbSync();
@@ -4935,6 +4949,9 @@
         var dormant = stats.lastLoginAt && (Date.now() - stats.lastLoginAt) > 2592000000;
         var dormantMark = dormant ? ' ⚠️' : '';
         statsHtml = '<span style="font-size:11px;color:' + (dormant ? 'var(--warning)' : 'var(--text-muted)') + '">📅 ' + timeStr + ' · 登录' + (stats.loginCount || 0) + '次' + dormantMark + '</span>';
+        if (stats.applicationsSubmitted) {
+          statsHtml += '<br><span style="font-size:11px;color:var(--text-muted)">📮 申请' + (stats.applicationsSubmitted || 0) + '个 · ✅ 批准' + (stats.applicationsApproved || 0) + '个</span>';
+        }
       } else {
         statsHtml = '<span style="font-size:11px;color:var(--text-muted)">📅 从未登录</span>';
       }
@@ -4993,6 +5010,12 @@
     var statsBarEl = document.getElementById('userStatsBar');
     if (statsBarEl) {
       statsBarEl.innerHTML = '📊 共 ' + totalUsers + ' 人 · 活跃 ' + activeCount + ' 人 · 休眠 ' + dormantCount + ' 人 · 禁用 ' + disabledCount + ' 人';
+      var pendingCount = (rootUser && db.userData[rootUser]?.pendingBookmarks)
+        ? db.userData[rootUser].pendingBookmarks.filter(function(p) { return p.status === 'pending'; }).length
+        : 0;
+      if (pendingCount > 0) {
+        statsBarEl.innerHTML += ' · 📮 待审批 ' + pendingCount + ' 个';
+      }
     }
   }
 
@@ -6880,6 +6903,7 @@
     }
 
     if (!rootData.pendingBookmarks) rootData.pendingBookmarks = [];
+    incrementUserStat(state.currentUser, 'applicationsSubmitted');
     rootData.pendingBookmarks.unshift({
       id: genId(),
       name: escapeHtml(name),
@@ -7057,6 +7081,7 @@
 
     cachedDb = freshDb;
     globalDb = freshDb;
+    incrementUserStat(targetApp.suggestedBy, 'applicationsApproved');
     localStorage.setItem('my_collection_data', JSON.stringify(freshDb));
     lastCacheTime = Date.now();
     await saveDb(freshDb);
@@ -7096,6 +7121,7 @@
 
     cachedDb = freshDb;
     globalDb = freshDb;
+    incrementUserStat(targetApp.suggestedBy, 'applicationsRejected');
     localStorage.setItem('my_collection_data', JSON.stringify(freshDb));
     lastCacheTime = Date.now();
     await saveDb(freshDb);
@@ -7300,6 +7326,7 @@
 
     cachedDb = freshDb;
     globalDb = freshDb;
+    incrementUserStat(targetApp.suggestedBy, 'applicationsApproved');
     localStorage.setItem('my_collection_data', JSON.stringify(freshDb));
     lastCacheTime = Date.now();
     await saveDb(freshDb);
