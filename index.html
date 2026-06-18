@@ -1223,7 +1223,7 @@
     <div style="padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap">
       <button class="btn btn-sm" id="themeToggleBtn" onclick="cycleTheme()" style="width:100%;font-size:11px;padding:4px">🌙 深色模式</button>
       <button class="btn btn-sm" onclick="showShortcuts()" style="width:100%;font-size:11px;padding:4px">⌨ 快捷键</button>
-      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.21.0</div>
+      <div style="width:100%;text-align:center;color:var(--text-muted);font-size:10px;margin-top:4px">v1.21.1</div>
     </div>
   </aside>
 
@@ -4896,14 +4896,13 @@
     
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-muted);font-size:12px">
-        <span style="flex:0.5;text-align:center">
+        <span style="flex:0.6;text-align:center">
           <input type="checkbox" id="selectAllUsers" onchange="selectAllUsers(this.checked)" ${users.filter(u => u.role !== 'root').length > 0 && users.filter(u => u.role !== 'root').every(u => selectedUsers.has(u.username)) ? 'checked' : ''} style="cursor:pointer">
         </span>
-        <span style="flex:2">账号</span>
+        <span style="flex:2.2">账号</span>
         <span style="flex:0.8;text-align:center">角色</span>
-        <span style="flex:0.8;text-align:center">状态</span>
-        <span style="flex:1.4;text-align:center">活跃度</span>
-        <span style="flex:0.5;text-align:center">操作</span>
+        <span style="flex:1;text-align:center">状态</span>
+        <span style="flex:0.6;text-align:center">操作</span>
       </div>
     `;
     users.forEach(u => {
@@ -4928,7 +4927,7 @@
       const userGroups = db.users[u.username]?.groups || [];
       const groupTags = userGroups.map(gid => {
         const g = accountGroups.find(ag => ag.id === gid);
-        return g ? `<span style="font-size:10px;color:var(--accent);background:var(--accent-dim);padding:1px 5px;border-radius:3px;margin-right:3px">${g.name}</span>` : '';
+        return g ? `<span style="font-size:10px;color:var(--accent);background:var(--accent-dim);padding:1px 5px;border-radius:3px;margin-right:3px;vertical-align:middle">${g.name}</span>` : '';
       }).join('');
       
       const statusText = isEnabled ? '启用' : '禁用';
@@ -4948,30 +4947,34 @@
         var timeStr = formatTimeAgo(stats.lastLoginAt);
         var dormant = stats.lastLoginAt && (Date.now() - stats.lastLoginAt) > 2592000000;
         var dormantMark = dormant ? ' ⚠️' : '';
-        statsHtml = '<span style="font-size:11px;color:' + (dormant ? 'var(--warning)' : 'var(--text-muted)') + '">📅 ' + timeStr + ' · 登录' + (stats.loginCount || 0) + '次' + dormantMark + '</span>';
+        statsHtml = '<span style="color:' + (dormant ? 'var(--warning)' : 'var(--text-muted)') + '">📅 ' + timeStr + ' · 登录' + (stats.loginCount || 0) + '次' + dormantMark + '</span>';
         if (stats.applicationsSubmitted) {
-          statsHtml += '<br><span style="font-size:11px;color:var(--text-muted)">📮 申请' + (stats.applicationsSubmitted || 0) + '个 · ✅ 批准' + (stats.applicationsApproved || 0) + '个</span>';
+          statsHtml += '　<span style="color:var(--text-muted)">📮 申请' + (stats.applicationsSubmitted || 0) + ' · ✅ 批准' + (stats.applicationsApproved || 0) + '</span>';
         }
       } else {
         statsHtml = '<span style="font-size:11px;color:var(--text-muted)">📅 从未登录</span>';
       }
 
       html += `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-primary);font-size:13px">
-          <span style="flex:0.5;text-align:center">
-            <input type="checkbox" class="user-checkbox" data-username="${u.username}" ${isRoot ? '' : selectedUsers.has(u.username) ? 'checked' : ''} ${isRoot ? 'disabled' : ''} onchange="toggleUserSelect('${u.username}', this.checked)" style="cursor:${isRoot ? 'not-allowed' : 'pointer'}">
-          </span>
-          <span style="flex:2;font-weight:${fontWeight};color:${userColor}">
-            ${u.username} ${extraText}${groupTags ? '<br>' : ''}<span style="display:inline-block;margin-top:${groupTags ? '2px' : '0'}">${groupTags}</span>
-          </span>
-          <span style="flex:0.8;text-align:center">
-            <span style="font-size:11px;color:${isRoot ? 'var(--accent)' : 'var(--text-primary)'};font-weight:600">${isRoot ? '超级' : isAdmin ? '管理' : '普通'}</span>
-          </span>
-          <span style="flex:0.8;text-align:center">
-            <span style="font-size:11px;color:${statusColor};background:${statusBg};padding:2px 8px;border-radius:10px">${statusText}</span>
-          </span>
-          <span style="flex:1.4;text-align:center">${statsHtml}</span>
-          <span style="flex:0.5;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
+        <div style="border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px 4px 12px;color:var(--text-primary);font-size:13px">
+            <span style="flex:0.6;text-align:center">
+              <input type="checkbox" class="user-checkbox" data-username="${u.username}" ${isRoot ? '' : selectedUsers.has(u.username) ? 'checked' : ''} ${isRoot ? 'disabled' : ''} onchange="toggleUserSelect('${u.username}', this.checked)" style="cursor:${isRoot ? 'not-allowed' : 'pointer'}">
+            </span>
+            <span style="flex:2.2;text-align:left;font-weight:${fontWeight};color:${userColor}">
+              ${u.username} ${extraText} ${groupTags ? '<span style="margin-left:6px">'+groupTags+'</span>' : ''}
+            </span>
+            <span style="flex:0.8;text-align:center">
+              <span style="font-size:11px;color:${isRoot ? 'var(--accent)' : 'var(--text-primary)'};font-weight:600">${isRoot ? '超级' : isAdmin ? '管理' : '普通'}</span>
+            </span>
+            <span style="flex:1;text-align:center">
+              <span style="font-size:11px;color:${statusColor};background:${statusBg};padding:2px 10px;border-radius:10px;white-space:nowrap">${statusText}</span>
+            </span>
+            <span style="flex:0.6;text-align:center;display:flex;gap:4px;justify-content:center">${actionText}</span>
+          </div>
+          <div style="padding:2px 12px 6px 30px;color:var(--text-muted);font-size:10px;line-height:1.3;text-align:left">
+            ${statsHtml}
+          </div>
         </div>
       `;
     });
