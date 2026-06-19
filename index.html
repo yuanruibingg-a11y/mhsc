@@ -2815,7 +2815,7 @@
           const groupCats = state.categories.filter(c => c.groupId === group.id);
           groupCats.sort((a, b) => a.sortOrder - b.sortOrder);
           const isCollapsed = state.collapsedGroups.includes(group.id);
-          const groupCatCount = groupCats.reduce((sum, c) => sum + getCategoryCount(c.id), 0);
+          const groupCatCount = (() => { const s = new Set(); groupCats.forEach(c => { state.bookmarks.forEach(b => { if (b.categoryIds && b.categoryIds.includes(c.id)) s.add(b.id); }); }); return s.size; })();
           
           return `
             <div class="group-item" data-group-id="${group.id}">
@@ -3158,7 +3158,7 @@
                    ${customIconOnerror}>
             </div>
             <div class="bm-body">
-              <div class="bm-name">${escapeHtml(bm.name)}</div>
+              <div class="bm-name" title="${escapeHtml(bm.name)}">${escapeHtml(bm.name)}</div>
               <div class="bm-url">${escapeHtml(bm.url)}</div>
               ${(() => {
                 if (!bm.categoryIds || bm.categoryIds.length <= 1) return '';
@@ -4019,7 +4019,7 @@
     if (type === 'group') {
       group = state.groups.find(g => g.id === id);
       const groupCats = state.categories.filter(c => c.groupId === id);
-      const totalBms = groupCats.reduce((sum, c) => sum + getCategoryCount(c.id), 0);
+      const totalBms = (() => { const s = new Set(); groupCats.forEach(c => { state.bookmarks.forEach(b => { if (b.categoryIds && b.categoryIds.includes(c.id)) s.add(b.id); }); }); return s.size; })();
       title.textContent = '删除分组';
       text.textContent = totalBms > 0
         ? `确定要删除分组「${group.name}」吗？该分组下的 ${groupCats.length} 个分类和 ${totalBms} 个收藏也将被一并删除。`
